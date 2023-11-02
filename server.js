@@ -19,6 +19,7 @@ app.use(express.json())
 app.use('/uploadimage', imageUploadRouter);
 app.use("/admin", require("./app/routes/admin/adminroutes"))
 app.use("/signal", require("./app/routes/signal/signalroutes"))
+app.use("/takeprofit", require("./app/routes/takeprofit/takeprofitroutes"))
 app.get('/', (req, res) => {
     res.json({ message: 'GT Caption Signals !' });
 });
