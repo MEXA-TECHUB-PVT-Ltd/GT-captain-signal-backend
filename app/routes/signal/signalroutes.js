@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const signalController = require("../../controllers/signalcontroller");
 
-router.post('/create', signalController.createsignal);
-router.get('/getall', signalController.gettallsignals);
-router.post('/createtakeprofit', signalController.createTakeProfit);
+router.post('/createsignal', signalController.createsignal);
+router.get('/getallsignals', signalController.gettallsignals);
+router.get('/getsignalbyID/:signal_id', signalController.getSignalById);  
+router.put('/updatesignal/:signal_id', signalController.updateSignalById); 
+router.delete('/deletesignal/:signal_id', signalController.deleteSignalById);  
 
 module.exports = router;

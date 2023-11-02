@@ -2,7 +2,7 @@ const Pool = require('pg').Pool;
 require('dotenv').config();
 const fs = require('fs');
 
-console.log(process.env.USER)
+console.log("GT_Caption Signals")
 const pool = new Pool({
   host: process.env.HOST,
   port: process.env.PORT,
