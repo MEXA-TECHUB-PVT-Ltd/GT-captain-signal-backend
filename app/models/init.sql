@@ -30,3 +30,26 @@ CREATE TABLE IF NOT EXISTS take_profit (
     created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS broker (
+  broker_id SERIAL PRIMARY KEY,
+  image VARCHAR(255) NOT NULL, 
+  name VARCHAR(255) NOT NULL, 
+  email VARCHAR(255) NOT NULL, 
+  profit DECIMAL,
+  loss DECIMAL,
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS Users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  email VARCHAR(255),
+  password VARCHAR(255),
+  confirm_password VARCHAR(255),
+  signup_type VARCHAR(255), 
+  image VARCHAR(255),
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+);

@@ -1,4 +1,3 @@
- // imageupload.js
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -24,7 +23,7 @@ const imageUploadRouter = express.Router();
 
 imageUploadRouter.post('/', upload.single('image'), (req, res) => {
     if (req.file) {
-        res.json({ status: true, imageUrl: `image/${req.file.filename}` });
+        res.json({ status: true, imageUrl: `uploadimage/image/${req.file.filename}` });
     } else {
         res.status(400).json({ status: false, error: 'No file uploaded' });
     }
