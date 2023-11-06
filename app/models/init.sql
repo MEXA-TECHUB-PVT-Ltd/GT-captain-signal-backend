@@ -49,7 +49,33 @@ CREATE TABLE IF NOT EXISTS Users (
   password VARCHAR(255),
   confirm_password VARCHAR(255),
   signup_type VARCHAR(255), 
-  image VARCHAR(255),
+  image VARCHAR(255), 
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS Deletedusers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  email VARCHAR(255),
+  password VARCHAR(255),
+  confirm_password VARCHAR(255),
+  signup_type VARCHAR(255), 
+  image VARCHAR(255), 
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+); 
+
+CREATE TABLE IF NOT EXISTS Applink (
+  id SERIAL PRIMARY KEY,
+  link VARCHAR(255), 
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+); 
+
+CREATE TABLE IF NOT EXISTS ratelink (
+  id SERIAL PRIMARY KEY,
+  link VARCHAR(255), 
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+); 

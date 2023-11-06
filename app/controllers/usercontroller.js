@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require("../config/dbconfig")
 const nodemailer = require('nodemailer');
-// const cryptoRandomString = require('crypto-random-string');
 
 function isValidEmail(email) {
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
@@ -228,7 +227,7 @@ const forgetpassword = async (req, res) => {
 
         await transporter.sendMail(mailOptions);
 
-        res.status(200).json({ error: false, msg: 'OTP sent successfully', userID: userQueryResult.rows[0].id });
+        res.status(200).json({ error: false, msg: 'OTP sent successfully', userID: userQueryResult.rows[0], otp: otp });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Failed to send OTP' });
@@ -294,11 +293,24 @@ const deleteuser = async (req, res) => {
             return res.status(404).json({ error: true, msg: 'User not found' });
         }
 
-        // Delete the user from the database
-        const deleteUserQuery = 'DELETE FROM Users WHERE id = $1';
+        // Copy the user record to Deletedusers table
+        const deleteUserQuery = 'DELETE FROM Users WHERE id = $1 RETURNING *';
         const deleteUserValues = [userId];
 
-        await pool.query(deleteUserQuery, deleteUserValues);
+        const deletedUser = await pool.query(deleteUserQuery, deleteUserValues);
+
+        // Insert the deleted user into Deletedusers table
+        const insertDeletedUserQuery = 'INSERT INTO Deletedusers (name, email, password, confirm_password, signup_type, image) VALUES ($1, $2, $3, $4, $5, $6)';
+        const userValues = [
+            deletedUser.rows[0].name,
+            deletedUser.rows[0].email,
+            deletedUser.rows[0].password,
+            deletedUser.rows[0].confirm_password,
+            deletedUser.rows[0].signup_type,
+            deletedUser.rows[0].image,
+        ];
+
+        await pool.query(insertDeletedUserQuery, userValues);
 
         res.status(200).json({ error: false, msg: 'User deleted successfully' });
     } catch (error) {
@@ -307,4 +319,63 @@ const deleteuser = async (req, res) => {
     }
 }
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser };
+const getalldeletedusers = async (req, res) => {
+
+    const query = `
+        SELECT *
+        FROM Deletedusers
+    `;
+
+    pool.query(query, (err, result) => {
+        if (err) {
+            console.error('Error fetching take profits:', err);
+            return res.status(500).json({ msg: 'Internal server error', error: true });
+        }
+
+        const users = result.rows;
+        return res.status(200).json({ msg: "All users fetched", data: users, error: false });
+    });
+
+}
+
+const restoreuser = async (req, res) => {
+    const userId = req.params.id;
+
+    try {
+        // Check if the user exists in the Deletedusers table
+        const userExistsQuery = 'SELECT * FROM Deletedusers WHERE id = $1';
+        const userExistsValues = [userId];
+
+        const userQueryResult = await pool.query(userExistsQuery, userExistsValues);
+
+        if (userQueryResult.rows.length === 0) {
+            return res.status(404).json({ error: true, msg: 'User not found in Deletedusers' });
+        }
+
+        // Copy the user record from Deletedusers to Users table
+        const userToRestore = userQueryResult.rows[0];
+        const insertUserQuery = 'INSERT INTO Users (name, email, password, confirm_password, signup_type, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id';
+        const userValues = [
+            userToRestore.name,
+            userToRestore.email,
+            userToRestore.password,
+            userToRestore.confirm_password,
+            userToRestore.signup_type,
+            userToRestore.image,
+        ];
+
+        const insertResult = await pool.query(insertUserQuery, userValues);
+
+        // Delete the user record from Deletedusers table
+        const deleteUserQuery = 'DELETE FROM Deletedusers WHERE id = $1';
+        const deleteUserValues = [userId];
+        await pool.query(deleteUserQuery, deleteUserValues);
+
+        res.status(200).json({ error: false, msg: 'User restored successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: true, msg: 'Internal server error' });
+    }
+}
+
+module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers, restoreuser };
