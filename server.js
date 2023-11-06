@@ -19,6 +19,8 @@ app.use(express.json())
 app.use('/uploadimage', imageUploadRouter);
 app.use("/admin", require("./app/routes/admin/adminroutes"))
 app.use("/user", require("./app/routes/user/userroutes"))
+app.use("/applink", require("./app/routes/applink/applinkroutes"))
+app.use("/ratelink", require("./app/routes/ratelink/ratelinkroutes"))
 app.use("/signal", require("./app/routes/signal/signalroutes"))
 app.use("/takeprofit", require("./app/routes/takeprofit/takeprofitroutes"))
 app.use("/broker", require("./app/routes/broker/brokerroutes"))
