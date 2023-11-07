@@ -24,6 +24,7 @@ app.use("/ratelink", require("./app/routes/ratelink/ratelinkroutes"))
 app.use("/signal", require("./app/routes/signal/signalroutes"))
 app.use("/takeprofit", require("./app/routes/takeprofit/takeprofitroutes"))
 app.use("/broker", require("./app/routes/broker/brokerroutes"))
+app.use("/wishlist", require("./app/routes/wishlist/wishlistroutes"))
 app.get('/', (req, res) => {
     res.json({ message: 'GT Caption Signals !' });
 });
