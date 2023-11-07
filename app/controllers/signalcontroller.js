@@ -6,7 +6,7 @@ const createsignal = (req, res) => {
     if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_result || !trade_probability) {
         return res.status(400).json({ msg: 'Request body cannot be empty', error: true });
     }
-    
+
     if (!['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) || !['BUY', 'SELL'].includes(action)) {
         return res.status(400).json({ msg: 'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL', error: true });
     }
@@ -53,7 +53,7 @@ const gettallsignals = (req, res) => {
 
     // Query to retrieve all signals and their associated take profits
     const query = `
-     SELECT s.*, t.open_price, t.take_profit
+     SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
      FROM signals s
      LEFT JOIN take_profit t
      ON s.signal_id = t.signal_id
@@ -68,7 +68,7 @@ const gettallsignals = (req, res) => {
         // Process the results and send the response
         const signalsWithTakeProfits = [];
         let currentSignal = null;
-
+        // console.log(result.rows)
         for (const row of result.rows) {
             if (!currentSignal || currentSignal.signal_id !== row.signal_id) {
                 currentSignal = {
@@ -91,6 +91,7 @@ const gettallsignals = (req, res) => {
 
             if (row.open_price && row.take_profit) {
                 currentSignal.take_profit.push({
+                    take_profit_id: row.take_profit_id,
                     open_price: row.open_price,
                     take_profit: row.take_profit,
                 });
@@ -107,7 +108,7 @@ const getSignalById = (req, res) => {
 
     // Query to retrieve a specific signal and its associated take profits
     const query = `
-        SELECT s.*, t.open_price, t.take_profit
+        SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
         FROM signals s
         LEFT JOIN take_profit t
         ON s.signal_id = t.signal_id
@@ -146,6 +147,7 @@ const getSignalById = (req, res) => {
 
             if (row.open_price && row.take_profit) {
                 signalWithTakeProfits.take_profit.push({
+                    take_profit_id: row.take_profit_id,
                     open_price: row.open_price,
                     take_profit: row.take_profit,
                 });
@@ -157,7 +159,7 @@ const getSignalById = (req, res) => {
 };
 
 const updateSignalById = (req, res) => {
-    const signalId = req.params.signal_id; 
+    const signalId = req.params.signal_id;
     const { title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability } = req.body;
 
     const query = `
@@ -187,7 +189,7 @@ const updateSignalById = (req, res) => {
 
 const deleteSignalById = (req, res) => {
     const signalId = req.params.signal_id;
-    
+
     const query = `
         DELETE FROM signals
         WHERE signal_id = $1

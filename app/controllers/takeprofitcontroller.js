@@ -1,7 +1,8 @@
 const pool = require("../config/dbconfig")
 
 const createTakeProfit = (req, res) => {
-    const { signal_id, open_price, take_profit } = req.body;
+    
+    const { signal_id, take_profits } = req.body;
 
     // Check if the signal_id exists in the signals table
     const checkSignalQuery = `
@@ -9,7 +10,6 @@ const createTakeProfit = (req, res) => {
     `;
 
     const signalValues = [signal_id];
-    console.log("signalValues", signalValues);
 
     pool.query(checkSignalQuery, signalValues, (signalErr, signalResult) => {
         if (signalErr) {
@@ -22,26 +22,32 @@ const createTakeProfit = (req, res) => {
             return res.status(400).json({ error: 'Signal with this id not found', status: false });
         }
 
-        // If the signal_id exists, insert the new take_profit record into the database
+        // If the signal_id exists, insert the new take_profit records into the database
         const insertTakeProfitQuery = `
             INSERT INTO take_profit (signal_id, open_price, take_profit)
             VALUES ($1, $2, $3)
             RETURNING *
         `;
 
-        const takeProfitValues = [signal_id, open_price, take_profit];
-
-        pool.query(insertTakeProfitQuery, takeProfitValues, (err, takeProfitResult) => {
-            if (err) {
-                console.error('Error creating take_profit record:', err);
-                return res.status(500).json({ error: 'Internal server error', status: false });
-            }
-
-            const newTakeProfit = takeProfitResult.rows[0];
-            return res.status(201).json({ message: 'Take profit record created successfully', data: newTakeProfit, status: true });
+        // Create an array to hold all the insert queries
+        const insertQueries = take_profits.map(tp => {
+            const takeProfitValues = [signal_id, tp.open_price, tp.take_profit];
+            return pool.query(insertTakeProfitQuery, takeProfitValues);
         });
+
+        // Execute all insert queries in parallel
+        Promise.all(insertQueries)
+            .then(takeProfitResults => {
+                const newTakeProfits = takeProfitResults.map(result => result.rows[0]);
+                return res.status(201).json({ message: 'Take profit records created successfully', data: newTakeProfits, status: true });
+            })
+            .catch(err => {
+                console.error('Error creating take_profit records:', err);
+                return res.status(500).json({ error: 'Internal server error', status: false });
+            });
     });
-};
+
+}
 
 const getAllTakeProfits = (req, res) => {
     // Query to retrieve all take profits
@@ -110,34 +116,71 @@ const getTakeProfitbyID = (req, res) => {
     });
 };
 
-const updateTakeProfit = (req, res) => {
-    const takeprofitID = req.params.take_profit_id; // Assuming you pass the take_profit_id as a parameter
-    const { open_price, take_profit } = req.body;
+const updateTakeProfit = (req, res) => { 
 
-    // Query to update the specific take profit
-    const query = `
-        UPDATE take_profit
-        SET open_price = $1, take_profit = $2
-        WHERE take_profit_id = $3
-        RETURNING *
+    const { signal_id, take_profits } = req.body;
+
+    // Check if the signal_id exists in the signals table
+    const checkSignalQuery = `
+        SELECT signal_id FROM signals WHERE signal_id = $1
     `;
 
-    const values = [open_price, take_profit, takeprofitID];
+    const signalValues = [signal_id];
 
-    pool.query(query, values, (err, result) => {
-        if (err) {
-            console.error('Error updating take profit:', err);
-            return res.status(500).json({ error: 'Internal server error', staus: false });
+    pool.query(checkSignalQuery, signalValues, (signalErr, signalResult) => {
+        if (signalErr) {
+            console.error('Error checking signal:', signalErr);
+            return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
-        if (result.rowCount === 0) {
-            // The take profit with the specified take_profit_id was not found
-            return res.status(404).json({ status: false, error: 'Take profit not found' });
+        // Check if a signal with the provided signal_id exists
+        if (signalResult.rows.length === 0) {
+            return res.status(400).json({ msg: 'Signal with this id not found', error: true });
         }
 
-        // The update was successful, and the updated take profit attributes are in result.rows[0]
-        return res.status(200).json({ msg: 'Take profit updated', data: result.rows[0], status: true });
+        // If the signal_id exists, update existing take_profit records and insert new ones
+
+        // First, update existing take profit records if any
+        const updateTakeProfitQuery = `
+            UPDATE take_profit
+            SET open_price = $2, take_profit = $3
+            WHERE signal_id = $1 AND take_profit_id = $4
+            RETURNING *
+        `;
+
+        const updateQueries = take_profits
+            .filter(tp => tp.take_profit_id) // Filter only the records with take_profit_id
+            .map(tp => {
+                const takeProfitValues = [signal_id, tp.open_price, tp.take_profit, tp.take_profit_id];
+                return pool.query(updateTakeProfitQuery, takeProfitValues);
+            });
+
+        // Then, insert new take profit records
+        const insertTakeProfitQuery = `
+            INSERT INTO take_profit (signal_id, open_price, take_profit)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+
+        const insertQueries = take_profits
+            .filter(tp => !tp.take_profit_id) // Filter only the records without take_profit_id
+            .map(tp => {
+                const takeProfitValues = [signal_id, tp.open_price, tp.take_profit];
+                return pool.query(insertTakeProfitQuery, takeProfitValues);
+            });
+
+        // Execute all update and insert queries in parallel
+        Promise.all([...updateQueries, ...insertQueries])
+            .then(takeProfitResults => {
+                const updatedTakeProfits = takeProfitResults.map(result => result.rows[0]);
+                return res.status(200).json({ msg: 'Take profit records updated successfully', data: updatedTakeProfits, error: false });
+            })
+            .catch(err => {
+                console.error('Error updating/creating take_profit records:', err);
+                return res.status(500).json({ msg: 'Internal server error', error: true });
+            });
     });
+
 };
 
 const deleteTakeProfit = (req, res) => {

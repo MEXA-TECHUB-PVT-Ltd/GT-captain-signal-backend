@@ -22,9 +22,16 @@ CREATE TABLE IF NOT EXISTS signals (
   updated_at timestamp DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS wishlist (
+    id SERIAL PRIMARY KEY,
+    signal_id INTEGER NOT NULL,
+    created_at timestamp DEFAULT NOW(),
+    updated_at timestamp DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS take_profit (
     take_profit_id SERIAL PRIMARY KEY,
-    signal_id DECIMAL NOT NULL,
+    signal_id INTEGER NOT NULL, 
     open_price DECIMAL NOT NULL,
     take_profit DECIMAL NOT NULL,
     created_at timestamp DEFAULT NOW(),
