@@ -160,20 +160,11 @@ const getSignalById = (req, res) => {
 
 const updateSignalById = (req, res) => {
     const signalId = req.params.signal_id;
-    const { title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability } = req.body;
 
-    const query = `
-        UPDATE signals
-        SET title = $1, price = $2, date = $3, time = $4, signal_status = $5, action = $6, stop_loss = $7, trade_result = $8, trade_probability = $9
-        WHERE signal_id = $10
-        RETURNING *
-    `;
-
-    const values = [title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, signalId];
-
-    pool.query(query, values, (err, result) => {
+    // Fetch the existing data for the signal using the signal_id
+    pool.query('SELECT * FROM signals WHERE signal_id = $1', [signalId], (err, result) => {
         if (err) {
-            console.error('Error updating signal:', err);
+            console.error('Error fetching signal:', err);
             return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
@@ -182,10 +173,48 @@ const updateSignalById = (req, res) => {
             return res.status(404).json({ error: true, msg: 'Signal not found' });
         }
 
-        // The update was successful, and the updated signal attributes are in result.rows[0]
-        return res.status(200).json({ msg: 'Signal updated', data: result.rows[0], error: false });
+        // Merge the existing data with the request body, only updating the provided attributes
+        const existingData = result.rows[0];
+        const {
+            title = existingData.title,
+            price = existingData.price,
+            date = existingData.date,
+            time = existingData.time,
+            signal_status = existingData.signal_status,
+            action = existingData.action,
+            stop_loss = existingData.stop_loss,
+            trade_result = existingData.trade_result,
+            trade_probability = existingData.trade_probability,
+        } = req.body;
+
+        const query = `
+            UPDATE signals
+            SET title = $1, price = $2, date = $3, time = $4, signal_status = $5, action = $6, stop_loss = $7, trade_result = $8, trade_probability = $9
+            WHERE signal_id = $10
+            RETURNING *
+        `;
+
+        const values = [
+            title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, signalId
+        ];
+
+        pool.query(query, values, (err, result) => {
+            if (err) {
+                console.error('Error updating signal:', err);
+                return res.status(500).json({ msg: 'Internal server error', error: true });
+            }
+
+            if (result.rowCount === 0) {
+                // The signal with the specified signal_id was not found
+                return res.status(404).json({ error: true, msg: 'Signal not found' });
+            }
+
+            // The update was successful, and the updated signal attributes are in result.rows[0]
+            return res.status(200).json({ msg: 'Signal updated', data: result.rows[0], error: false });
+        });
     });
 };
+
 
 const deleteSignalById = (req, res) => {
     const signalId = req.params.signal_id;

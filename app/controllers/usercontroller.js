@@ -12,21 +12,11 @@ function isValidEmail(email) {
 const allowedSignupTypes = ["email", "google", "facebook"];
 
 const usersignup = async (req, res) => {
-    const { name, email, password, confirm_password, signup_type } = req.body;
+    const { name, email, password, signup_type } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
         return res.status(400).json({ error: true, msg: 'Invalid email format' });
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-        return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
-    }
-
-    // Validate signup_type
-    if (!allowedSignupTypes.includes(signup_type)) {
-        return res.status(400).json({ error: true, msg: 'Invalid signup type' });
     }
 
     // Check if the email already exists in the database
@@ -37,13 +27,24 @@ const usersignup = async (req, res) => {
             return res.status(400).json({ error: true, msg: 'Email already exists' });
         }
 
-        // Hash the password before storing it in the database
-        const hashedPassword = await bcrypt.hash(password, 10); // You can adjust the number of rounds for security
+        // Initialize variables for password
+        let hashedPassword = null;
 
-        // Insert the user into the database with the hashed password
+        // Check signup_type and handle password accordingly
+        if (signup_type === 'email') {
+            // Validate password length
+            if (password.length < 6) {
+                return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
+            }
+
+            // Hash the password before storing it in the database
+            hashedPassword = await bcrypt.hash(password, 10); // You can adjust the number of rounds for security
+        }
+
+        // Insert the user into the database
         const result = await pool.query(
-            'INSERT INTO Users (name, email, password, confirm_password, signup_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [name, email, hashedPassword, confirm_password, signup_type]
+            'INSERT INTO Users (name, email, password, signup_type) VALUES ($1, $2, $3, $4) RETURNING *',
+            [name, email, hashedPassword, signup_type]
         );
 
         const userId = result.rows[0];
@@ -54,8 +55,9 @@ const usersignup = async (req, res) => {
     }
 };
 
+
 const usersignin = async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, signup_type } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
@@ -71,7 +73,9 @@ const usersignin = async (req, res) => {
         }
 
         // Check if the provided password matches the hashed password in the database
-        const isPasswordValid = await bcrypt.compare(password, user.rows[0].password);
+        const isPasswordValid = signup_type === 'email' ?
+            await bcrypt.compare(password, user.rows[0].password) :
+            true; // For 'facebook' and 'google' signups, don't compare passwords
 
         if (!isPasswordValid) {
             return res.status(401).json({ error: true, msg: 'Invalid password' });
@@ -88,7 +92,8 @@ const usersignin = async (req, res) => {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
     }
-}
+};
+
 
 const getallusers = async (req, res) => {
 

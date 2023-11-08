@@ -97,24 +97,40 @@ const updateBroker = (req, res) => {
 
     const updateBrokerQuery = `
         UPDATE broker
-        SET image = $1, name = $2, email = $3, profit = $4, loss = $5
+        SET image = COALESCE($1, image), name = COALESCE($2, name), email = COALESCE($3, email), profit = COALESCE($4, profit), loss = COALESCE($5, loss)
         WHERE broker_id = $6
         RETURNING *
     `;
 
     const brokerValues = [image, name, email, profit, loss, broker_id];
 
-    pool.query(updateBrokerQuery, brokerValues, (err, result) => {
-        if (err) {
-            console.error('Error updating broker:', err);
+    // Check if the provided email already exists for another broker
+    const checkEmailQuery = `
+        SELECT COUNT(*) FROM broker WHERE email = $1 AND broker_id <> $2
+    `;
+
+    pool.query(checkEmailQuery, [email, broker_id], (emailCheckErr, emailCheckResult) => {
+        if (emailCheckErr) {
+            console.error('Error checking email uniqueness:', emailCheckErr);
             return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ msg: 'Broker not found', error: true });
+        if (emailCheckResult.rows[0].count > 0) {
+            return res.status(400).json({ msg: 'Email already exists for another broker', error: true });
         }
 
-        return res.status(200).json({ msg: 'Broker updated successfully', data: result.rows[0], error: false });
+        pool.query(updateBrokerQuery, brokerValues, (err, result) => {
+            if (err) {
+                console.error('Error updating broker:', err);
+                return res.status(500).json({ msg: 'Internal server error', error: true });
+            }
+
+            if (result.rowCount === 0) {
+                return res.status(404).json({ msg: 'Broker not found', error: true });
+            }
+
+            return res.status(200).json({ msg: 'Broker updated successfully', data: result.rows[0], error: false });
+        });
     });
 };
 

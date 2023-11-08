@@ -1,5 +1,8 @@
+-- CREATE DATABASE gtcaption;
+-- \c gtcaption
+
 CREATE TABLE IF NOT EXISTS Admin (
-   id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY, 
   name text,
   email text,
   password text,
@@ -24,6 +27,7 @@ CREATE TABLE IF NOT EXISTS signals (
 
 CREATE TABLE IF NOT EXISTS wishlist (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
     signal_id INTEGER NOT NULL,
     created_at timestamp DEFAULT NOW(),
     updated_at timestamp DEFAULT NOW()
@@ -53,8 +57,7 @@ CREATE TABLE IF NOT EXISTS Users (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
   email VARCHAR(255),
-  password VARCHAR(255),
-  confirm_password VARCHAR(255),
+  password VARCHAR(255), 
   signup_type VARCHAR(255), 
   image VARCHAR(255), 
   created_at timestamp DEFAULT NOW(),
