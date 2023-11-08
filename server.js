@@ -1,20 +1,44 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv')
+const socketIo = require('socket.io'); 
+const bodyParser = require("body-parser");
+const http = require('http');
 
 const pool = require("././app/config/dbconfig")
 const imageUploadRouter = require('./app/uploadimage');
 
 const app = express();
+// const io = socketIo(server);
 const port = 4000;
 
 dotenv.config();
 
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
     methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'],
 }));
 
 app.use(express.json())
+
+const server = http.createServer(app);
+
+const io = socketIo(server, {
+    cors: {
+        origin: '*',
+        credentials: true,
+    },
+});
+
+io.on("connection", (socket) => {
+    console.log("User Connected ===>" + socket.id); 
+  
+    socket.on('disconnect', () => {
+      console.log('User disconnected');
+    }); 
+
+  });
 
 app.use('/uploadimage', imageUploadRouter);
 app.use("/admin", require("./app/routes/admin/adminroutes"))
