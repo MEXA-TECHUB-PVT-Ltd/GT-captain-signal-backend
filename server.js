@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv')
-const socketIo = require('socket.io'); 
+const socketIo = require('socket.io');
 const bodyParser = require("body-parser");
 const http = require('http');
 
@@ -22,24 +22,6 @@ app.use(cors({
 
 app.use(express.json())
 
-const server = http.createServer(app);
-
-const io = socketIo(server, {
-    cors: {
-        origin: '*',
-        credentials: true,
-    },
-});
-
-io.on("connection", (socket) => {
-    console.log("User Connected ===>" + socket.id); 
-  
-    socket.on('disconnect', () => {
-      console.log('User disconnected');
-    }); 
-
-  });
-
 app.use('/uploadimage', imageUploadRouter);
 app.use("/admin", require("./app/routes/admin/adminroutes"))
 app.use("/user", require("./app/routes/user/userroutes"))
@@ -53,6 +35,32 @@ app.get('/', (req, res) => {
     res.json({ message: 'GT Caption Signals !' });
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+const server = http.createServer(app);
+
+const io = socketIo(server, {
+    cors: {
+        origin: '*',
+        credentials: true,
+    },
 });
+io.on("connection", (socket) => {
+    console.log("Socket Connected ===>" + socket.id);
+
+    socket.on('join', (room) => {
+        socket.join(room);
+        io.to(room).emit('message', { user: 'admin', text: `${socket.id} has joined!` });
+    });
+
+    socket.on('sendMessage', (data) => {
+        io.to(data.room).emit('message', { user: socket.id, text: data.text });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
+
+});
+
+server.listen(port, () => {
+    console.log(`Server is running on port ${port}.`);
+}); 
