@@ -27,22 +27,38 @@ const createbroker = (req, res) => {
 };
 
 const getallbroker = (req, res) => {
+    const { page = 1, limit = 10 } = req.query;
 
-    const getbrokerQuery = `
-        SELECT * FROM broker 
+    // Calculate the OFFSET based on the page and limit
+    const offset = (page - 1) * limit;
+
+    let getbrokerQuery = `
+        SELECT * FROM broker
     `;
+
+    // Check if pagination parameters are provided
+    if (page && limit) {
+        getbrokerQuery += `
+            OFFSET ${offset}
+            LIMIT ${limit}
+        `;
+    }
 
     pool.query(getbrokerQuery, (err, result) => {
         if (err) {
-            console.error('Error creating signal:', err);
+            console.error('Error fetching brokers:', err);
             return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
-        return res.status(201).json({ msg: 'All brokers fetched', data: result.rows, error: false });
-
+        return res.status(200).json({
+            msg: 'Brokers fetched successfully',
+            error: false,
+            count: result.rows.length,
+            data: result.rows
+        });
     });
-
 };
+
 
 const getbrokerbyID = (req, res) => {
 

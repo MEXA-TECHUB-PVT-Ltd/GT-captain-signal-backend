@@ -89,6 +89,7 @@ const addToWishlist = (req, res) => {
 
                             return res.status(201).json({
                                 msg: 'Signal added to user\'s wishlist successfully',
+                                id: result.rows[0].id,
                                 signal: signalResult.rows[0],
                                 user: userResult.rows[0],
                                 error: false,
@@ -165,7 +166,7 @@ const getallwishlists = async (req, res) => {
 };
 
 const getSignalsByUserId = async (req, res) => {
-    const { userId } = req.params;  
+    const { userId } = req.params;
 
     try {
         const userQuery = 'SELECT * FROM users WHERE id = $1';
@@ -196,7 +197,7 @@ const getSignalsByUserId = async (req, res) => {
         console.error(error);
         res.status(500).json({ msg: 'Internal Server Error', error: true });
     }
-}; 
+};
 
 const deletewishlists = async (req, res) => {
     const signal_id = req.params.signal_id;
@@ -218,4 +219,50 @@ const deletewishlists = async (req, res) => {
     }
 }
 
-module.exports = { addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId };
+const removesignalbyuserID = async (req, res) => {
+    const { signal_id, user_id } = req.body;
+
+    // Check if the user exists
+    const checkUserExistsQuery = 'SELECT * FROM users WHERE id = $1';
+
+    try {
+        const userResult = await pool.query(checkUserExistsQuery, [user_id]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ msg: 'User not found', error: true });
+        }
+
+        // Check if the signal exists in the user's wishlist
+        const checkExistingQuery = `
+            SELECT * FROM wishlist WHERE signal_id = $1 AND user_id = $2
+        `;
+
+        const existingResult = await pool.query(checkExistingQuery, [signal_id, user_id]);
+
+        if (existingResult.rows.length === 0) {
+            return res.status(404).json({ msg: 'Signal not found in the user\'s wishlist', error: true });
+        }
+
+        // If the signal exists in the user's wishlist, remove it
+        const removeWishlistQuery = `
+            DELETE FROM wishlist WHERE signal_id = $1 AND user_id = $2
+            RETURNING *
+        `;
+
+        const removeValues = [signal_id, user_id];
+
+        const result = await pool.query(removeWishlistQuery, removeValues);
+
+        res.status(200).json({
+            msg: 'Signal removed from user\'s wishlist successfully',
+            removedSignal: result.rows[0],
+            error: false,
+        });
+    } catch (error) {
+        console.error('Error removing signal from user\'s wishlist:', error);
+        res.status(500).json({ msg: 'Internal Server Error', error: true });
+    }
+};
+
+
+module.exports = { addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId, removesignalbyuserID };

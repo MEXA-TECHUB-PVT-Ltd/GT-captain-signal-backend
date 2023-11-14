@@ -43,20 +43,38 @@ const io = socketIo(server, {
         credentials: true,
     },
 });
+
+const connectedUsers = {};
+// global.onlineUsers = new Map();
 io.on("connection", (socket) => {
+    //   global.chatSocket = socket;
     console.log("Socket Connected ===>" + socket.id);
 
-    socket.on('join', (room) => {
-        socket.join(room);
-        io.to(room).emit('message', { user: 'admin', text: `${socket.id} has joined!` });
+    socket.on('login', (userInfo) => {
+        connectedUsers[userInfo] = socket.id;
+        connectedUsers[userInfo.userId] = { socketId: socket.id, username: userInfo.username };
+        console.log(`User ${userInfo.userId} connected`);
     });
 
-    socket.on('sendMessage', (data) => {
-        io.to(data.room).emit('message', { user: socket.id, text: data.text });
+    socket.on('privateMessage', ({ targetUserId, message }) => {
+        const targetSocketId = connectedUsers[targetUserId]?.socketId;
+        console.log("userID", targetUserId);
+        if (targetSocketId) {
+            // Send the private message to the target user
+            io.to(targetSocketId).emit('privateMessage', { senderId: targetUserId, message });
+        } else {
+            // Handle the case when the target user is not online
+            console.log(`User ${targetUserId} is not online`);
+        }
     });
 
     socket.on('disconnect', () => {
-        console.log('User disconnected');
+        // Remove the disconnected user from the connectedUsers object
+        const userId = Object.keys(connectedUsers).find(key => connectedUsers[key] === socket.id);
+        if (userId) {
+            delete connectedUsers[userId];
+            console.log(`User ${userId} disconnected`);
+        }
     });
 
 });

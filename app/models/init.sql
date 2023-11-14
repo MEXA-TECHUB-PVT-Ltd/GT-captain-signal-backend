@@ -1,6 +1,3 @@
--- CREATE DATABASE gtcaption;
--- \c gtcaption
-
 CREATE TABLE IF NOT EXISTS Admin (
   id BIGSERIAL PRIMARY KEY, 
   name text,
@@ -19,7 +16,8 @@ CREATE TABLE IF NOT EXISTS signals (
     signal_status VARCHAR(10) CHECK (signal_status IN ('ACTIVE', 'INACTIVE', 'EXPIRED')) NOT NULL,
     action VARCHAR(5) CHECK (action IN ('BUY', 'SELL')) NOT NULL,
     stop_loss DECIMAL,
-    trade_result DECIMAL,
+    profit_loss VARCHAR(255) NOT NULL,
+    trade_result VARCHAR(255) NOT NULL,
     trade_probability DECIMAL,
     created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
@@ -58,20 +56,27 @@ CREATE TABLE IF NOT EXISTS Users (
   name VARCHAR(255),
   email VARCHAR(255),
   password VARCHAR(255), 
+  token VARCHAR(255),
   signup_type VARCHAR(255), 
-  image VARCHAR(255), 
+  image VARCHAR(255),
+  deleted_status BOOLEAN DEFAULT false, 
+  deleted_at TIMESTAMP,
+  delete_after TIMESTAMP,
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS Deletedusers (
   id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
   name VARCHAR(255),
   email VARCHAR(255),
   password VARCHAR(255),
   confirm_password VARCHAR(255),
   signup_type VARCHAR(255), 
   image VARCHAR(255), 
+  last_login timestamp,
+  deleted_at timestamp,
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 ); 

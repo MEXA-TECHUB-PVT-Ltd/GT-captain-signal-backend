@@ -8,9 +8,9 @@ router.get('/getallusers', userController.getallusers);
 router.get('/getuser/userbyID/:id', userController.getalluserbyID);
 router.put('/updateuser/userprofile/:id', userController.updateuserprofile);
 router.post('/password/forgetpassword', userController.forgetpassword);
-router.put('/password/updatepassword', userController.updatepassword);
-router.delete('/delete/deleteuser/:id', userController.deleteuser);
+router.put('/password/updatepassword', userController.updatepassword); 
+router.delete('/deleteuser/:id', userController.deleteuser); 
 router.get('/deleteusers/getall', userController.getalldeletedusers); 
-router.post('/restore/restoreusers/:id', userController.restoreuser);  
+// router.post('/restore/restoreusers/:id', userController.deletePermanentlyOldUsers);  
 
 module.exports = router;
