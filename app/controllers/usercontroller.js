@@ -12,19 +12,24 @@ function isValidEmail(email) {
 const allowedSignupTypes = ["email", "google", "facebook"];
 
 const usersignup = async (req, res) => {
-    const { name, email, password, signup_type, token } = req.body;
+    const { name, email, password, signup_type, token, device_id } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
         return res.status(400).json({ error: true, msg: 'Invalid email format' });
     }
 
-    // Check if the email already exists in the database
+    // Check if the email or device_id already exists in the database
     try {
         const emailExists = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+        const deviceExists = await pool.query('SELECT * FROM Users WHERE device_id = $1', [device_id]);
 
         if (emailExists.rows.length > 0) {
             return res.status(400).json({ error: true, msg: 'Email already exists' });
+        }
+
+        if (deviceExists.rows.length > 0) {
+            return res.status(400).json({ error: true, msg: 'Device already exists' });
         }
 
         // Initialize variables for password and token
@@ -48,8 +53,8 @@ const usersignup = async (req, res) => {
 
         // Insert the user into the database
         const result = await pool.query(
-            'INSERT INTO Users (name, email, password, signup_type, token) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [name, email, hashedPassword, signup_type, tokenValue]
+            'INSERT INTO Users (name, email, password, signup_type, token, device_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [name, email, hashedPassword, signup_type, tokenValue, device_id]
         );
 
         const userId = result.rows[0];
@@ -61,7 +66,7 @@ const usersignup = async (req, res) => {
 };
 
 const usersignin = async (req, res) => {
-    const { email, password, signup_type } = req.body;
+    const { email, password, signup_type, device_id } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
@@ -85,8 +90,22 @@ const usersignin = async (req, res) => {
             return res.status(401).json({ error: true, msg: 'Invalid password' });
         }
 
-        // Create and sign a JWT token
-        const rows = user.rows[0];
+        let rows; // Define the rows variable outside the if-else block
+
+        // Check if the device_id is the same as the one stored during signup
+        if (user.rows[0].device_id !== device_id) {
+            // If different, update the device_id
+            await pool.query('UPDATE Users SET device_id = $1 WHERE email = $2', [device_id, email]);
+
+            // Fetch the updated user data
+            const updatedUser = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+
+            // Assign the updated user data to rows
+            rows = updatedUser.rows[0];
+        } else {
+            // Use the existing user data if device_id is the same
+            rows = user.rows[0];
+        }
 
         const secretKey = crypto.randomBytes(32).toString('hex');
         const token = jwt.sign(rows, secretKey, { expiresIn: '1h' }); // Change the secret key and expiration time
@@ -97,7 +116,6 @@ const usersignin = async (req, res) => {
         res.status(500).json({ error: true, msg: 'Internal server error' });
     }
 };
-
 
 const getallusers = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;

@@ -7,6 +7,7 @@ const http = require('http');
 
 const pool = require("././app/config/dbconfig")
 const imageUploadRouter = require('./app/uploadimage');
+// const serviceAccount = require('./gtcaptionsignals-firebase-adminsdk-ujvae-29a88cdd4e.json'); // Adjust the path
 
 const app = express();
 // const io = socketIo(server);
@@ -31,6 +32,8 @@ app.use("/signal", require("./app/routes/signal/signalroutes"))
 app.use("/takeprofit", require("./app/routes/takeprofit/takeprofitroutes"))
 app.use("/broker", require("./app/routes/broker/brokerroutes"))
 app.use("/wishlist", require("./app/routes/wishlist/wishlistroutes"))
+app.use("/notifications", require("./app/routes/notification/notificationroutes"))
+
 app.get('/', (req, res) => {
     res.json({ message: 'GT Caption Signals !' });
 });
