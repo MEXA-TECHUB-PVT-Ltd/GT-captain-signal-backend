@@ -12,7 +12,7 @@ function isValidEmail(email) {
 const allowedSignupTypes = ["email", "google", "facebook"];
 
 const usersignup = async (req, res) => {
-    const { name, email, password, signup_type } = req.body;
+    const { name, email, password, signup_type, token } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
@@ -27,10 +27,11 @@ const usersignup = async (req, res) => {
             return res.status(400).json({ error: true, msg: 'Email already exists' });
         }
 
-        // Initialize variables for password
+        // Initialize variables for password and token
         let hashedPassword = null;
+        let tokenValue = null;
 
-        // Check signup_type and handle password accordingly
+        // Check signup_type and handle password and token accordingly
         if (signup_type === 'email') {
             // Validate password length
             if (password.length < 6) {
@@ -39,12 +40,16 @@ const usersignup = async (req, res) => {
 
             // Hash the password before storing it in the database
             hashedPassword = await bcrypt.hash(password, 10); // You can adjust the number of rounds for security
+        } else if (signup_type === 'google' || signup_type === 'facebook') {
+            // For Google or Facebook signups, set password to null and use the provided token
+            hashedPassword = null;
+            tokenValue = token; // Use the provided token for Google or Facebook signups
         }
 
         // Insert the user into the database
         const result = await pool.query(
-            'INSERT INTO Users (name, email, password, signup_type) VALUES ($1, $2, $3, $4) RETURNING *',
-            [name, email, hashedPassword, signup_type]
+            'INSERT INTO Users (name, email, password, signup_type, token) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [name, email, hashedPassword, signup_type, tokenValue]
         );
 
         const userId = result.rows[0];
@@ -54,7 +59,6 @@ const usersignup = async (req, res) => {
         res.status(500).json({ error: true, msg: 'Internal server error' });
     }
 };
-
 
 const usersignin = async (req, res) => {
     const { email, password, signup_type } = req.body;
@@ -96,22 +100,39 @@ const usersignin = async (req, res) => {
 
 
 const getallusers = async (req, res) => {
+    const { page = 1, limit = 10 } = req.query;
 
-    const query = `
+    // Calculate the OFFSET based on the page and limit
+    const offset = (page - 1) * limit;
+
+    let query = `
         SELECT *
         FROM Users
+        WHERE deleted_status = false AND deleted_at IS NULL
     `;
+
+    // Check if pagination parameters are provided
+    if (page && limit) {
+        query += `
+            OFFSET ${offset}
+            LIMIT ${limit}
+        `;
+    }
 
     pool.query(query, (err, result) => {
         if (err) {
-            console.error('Error fetching take profits:', err);
+            console.error('Error fetching users:', err);
             return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
         const users = result.rows;
-        return res.status(200).json({ msg: "All users fetched", data: users, error: false });
+        return res.status(200).json({
+            msg: "Users fetched successfully",
+            error: false,
+            count: users.length,
+            data: users
+        });
     });
-
 }
 
 const getalluserbyID = async (req, res) => {
@@ -138,7 +159,7 @@ const getalluserbyID = async (req, res) => {
 }
 
 const updateuserprofile = async (req, res) => {
-    const { name, email, image } = req.body;
+    const { name, image } = req.body;
     const userId = req.params.id; // Assuming you have a middleware to extract user info from JWT
 
     try {
@@ -156,14 +177,6 @@ const updateuserprofile = async (req, res) => {
 
         if (name !== undefined) {
             updatedAttributes.name = name;
-        }
-
-        if (email !== undefined) {
-            // Validate email format
-            if (!isValidEmail(email)) {
-                return res.status(400).json({ error: true, msg: 'Invalid email format' });
-            }
-            updatedAttributes.email = email;
         }
 
         if (image !== undefined) {
@@ -201,8 +214,8 @@ const updateuserprofile = async (req, res) => {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
     }
+};
 
-}
 
 const forgetpassword = async (req, res) => {
 
@@ -289,35 +302,21 @@ const deleteuser = async (req, res) => {
     const userId = req.params.id;
 
     try {
-        const userExistsQuery = 'SELECT * FROM Users WHERE id = $1';
-        const userExistsValues = [userId];
+        // Check if the user with the provided ID exists
+        const userExists = await pool.query('SELECT * FROM Users WHERE id = $1', [userId]);
 
-        const userQueryResult = await pool.query(userExistsQuery, userExistsValues);
-
-        if (userQueryResult.rows.length === 0) {
+        if (userExists.rows.length === 0) {
             return res.status(404).json({ error: true, msg: 'User not found' });
         }
 
-        // Copy the user record to Deletedusers table
-        const deleteUserQuery = 'DELETE FROM Users WHERE id = $1 RETURNING *';
-        const deleteUserValues = [userId];
+        // Update the user's deleted_status to true and set deleted_at timestamp
+        const result = await pool.query(
+            'UPDATE Users SET deleted_status = true, deleted_at = NOW() WHERE id = $1 RETURNING *',
+            [userId]
+        );
 
-        const deletedUser = await pool.query(deleteUserQuery, deleteUserValues);
-
-        // Insert the deleted user into Deletedusers table
-        const insertDeletedUserQuery = 'INSERT INTO Deletedusers (name, email, password, confirm_password, signup_type, image) VALUES ($1, $2, $3, $4, $5, $6)';
-        const userValues = [
-            deletedUser.rows[0].name,
-            deletedUser.rows[0].email,
-            deletedUser.rows[0].password,
-            deletedUser.rows[0].confirm_password,
-            deletedUser.rows[0].signup_type,
-            deletedUser.rows[0].image,
-        ];
-
-        await pool.query(insertDeletedUserQuery, userValues);
-
-        res.status(200).json({ error: false, msg: 'User deleted successfully' });
+        const deletedUser = result.rows[0];
+        res.status(200).json({ error: false, msg: 'User deleted successfully', data: deletedUser });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
@@ -326,61 +325,109 @@ const deleteuser = async (req, res) => {
 
 const getalldeletedusers = async (req, res) => {
 
-    const query = `
-        SELECT *
-        FROM Deletedusers
-    `;
-
-    pool.query(query, (err, result) => {
-        if (err) {
-            console.error('Error fetching take profits:', err);
-            return res.status(500).json({ msg: 'Internal server error', error: true });
-        }
-
-        const users = result.rows;
-        return res.status(200).json({ msg: "All users fetched", data: users, error: false });
-    });
-
-}
-
-const restoreuser = async (req, res) => {
-    const userId = req.params.id;
-
     try {
-        // Check if the user exists in the Deletedusers table
-        const userExistsQuery = 'SELECT * FROM Deletedusers WHERE id = $1';
-        const userExistsValues = [userId];
+        // Fetch users with deleted_status=true and deleted_at not null
+        const fetchQuery = `
+            SELECT *
+            FROM Users
+            WHERE deleted_status = true AND deleted_at IS NOT NULL;
+        `;
 
-        const userQueryResult = await pool.query(userExistsQuery, userExistsValues);
+        const fetchResult = await pool.query(fetchQuery);
 
-        if (userQueryResult.rows.length === 0) {
-            return res.status(404).json({ error: true, msg: 'User not found in Deletedusers' });
+        const deletedUsers = fetchResult.rows;
+
+        // Calculate the date 90 days ago from the current date
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+        // Convert the date to a PostgreSQL timestamp format
+        const formattedDate = ninetyDaysAgo.toISOString().slice(0, 19).replace("T", " ");
+
+        // Check if any users need to be permanently deleted
+        const usersToDelete = deletedUsers.filter(user => new Date(user.deleted_at) < ninetyDaysAgo);
+
+        if (usersToDelete.length > 0) {
+            // Delete users permanently
+            const deleteQuery = `
+                DELETE FROM Users
+                WHERE id IN (${usersToDelete.map(user => user.id).join(', ')})
+                RETURNING *;
+            `;
+
+            const deleteResult = await pool.query(deleteQuery);
+            const permanentlyDeletedUsers = deleteResult.rows;
+
+            return res.status(200).json({
+                // permanent delete
+                msg: "Deleted users fetched",
+                error: false,
+                count: permanentlyDeletedUsers.length,
+                data: permanentlyDeletedUsers
+            });
+        } else {
+            return res.status(200).json({
+                msg: "Deleted users fetched",
+                error: false,
+                count: deletedUsers.length,
+                data: deletedUsers
+            });
         }
-
-        // Copy the user record from Deletedusers to Users table
-        const userToRestore = userQueryResult.rows[0];
-        const insertUserQuery = 'INSERT INTO Users (name, email, password, confirm_password, signup_type, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id';
-        const userValues = [
-            userToRestore.name,
-            userToRestore.email,
-            userToRestore.password,
-            userToRestore.confirm_password,
-            userToRestore.signup_type,
-            userToRestore.image,
-        ];
-
-        const insertResult = await pool.query(insertUserQuery, userValues);
-
-        // Delete the user record from Deletedusers table
-        const deleteUserQuery = 'DELETE FROM Deletedusers WHERE id = $1';
-        const deleteUserValues = [userId];
-        await pool.query(deleteUserQuery, deleteUserValues);
-
-        res.status(200).json({ error: false, msg: 'User restored successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: true, msg: 'Internal server error' });
+        console.error('Error fetching and deleting users:', error);
+        res.status(500).json({ msg: 'Internal server error', error: true });
     }
+
 }
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers, restoreuser };
+// const restoreuser = async (req, res) => {
+//     const userId = req.params.id;
+
+//     try {
+//         const restoreQuery = 'UPDATE users SET deleted_at = NULL, delete_after = NULL WHERE id = $1 RETURNING *';
+//         const restoreValues = [userId];
+
+//         const restoreResult = await pool.query(restoreQuery, restoreValues);
+
+//         if (restoreResult.rows.length === 0) {
+//             return res.status(404).json({ error: true, msg: 'User not found' });
+//         }
+
+//         res.status(200).json({ error: false, msg: 'User account restored successfully' });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ error: true, msg: 'Internal server error' });
+//     }
+// }
+const deletePermanentlyOldUsers = async (req, res) => {
+    try {
+        // Calculate the date 90 days ago from the current date
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+        // Convert the date to a PostgreSQL timestamp format
+        const formattedDate = ninetyDaysAgo.toISOString().slice(0, 19).replace("T", " ");
+
+        // Query to delete users with deleted_status=true and deleted_at more than 90 days ago
+        const query = `
+            DELETE FROM Users
+            WHERE deleted_status = true AND deleted_at < $1
+            RETURNING *;
+        `;
+
+        const result = await pool.query(query, [formattedDate]);
+
+        const deletedUsers = result.rows;
+        return res.status(200).json({
+            msg: "Users deleted permanently",
+            error: false,
+            count: deletedUsers.length,
+            data: deletedUsers
+        });
+    } catch (error) {
+        console.error('Error deleting users permanently:', error);
+        res.status(500).json({ msg: 'Internal server error', error: true });
+    }
+};
+
+module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers, deletePermanentlyOldUsers };

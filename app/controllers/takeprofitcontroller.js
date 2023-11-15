@@ -1,8 +1,7 @@
 const pool = require("../config/dbconfig")
 
 const createTakeProfit = (req, res) => {
-    
-    const { signal_id, take_profits } = req.body;
+    const { signal_id, open_price, take_profits } = req.body;
 
     // Check if the signal_id exists in the signals table
     const checkSignalQuery = `
@@ -22,38 +21,60 @@ const createTakeProfit = (req, res) => {
             return res.status(400).json({ error: 'Signal with this id not found', status: false });
         }
 
-        // If the signal_id exists, insert the new take_profit records into the database
-        const insertTakeProfitQuery = `
+        // If the signal_id exists, insert the open_price into the database
+        const insertOpenPriceQuery = `
             INSERT INTO take_profit (signal_id, open_price, take_profit)
             VALUES ($1, $2, $3)
             RETURNING *
         `;
 
-        // Create an array to hold all the insert queries
-        const insertQueries = take_profits.map(tp => {
-            const takeProfitValues = [signal_id, tp.open_price, tp.take_profit];
-            return pool.query(insertTakeProfitQuery, takeProfitValues);
-        });
+        const openPriceValues = [signal_id, open_price, take_profits[0].take_profit]; // Assuming take_profits array is not empty
 
-        // Execute all insert queries in parallel
-        Promise.all(insertQueries)
-            .then(takeProfitResults => {
-                const newTakeProfits = takeProfitResults.map(result => result.rows[0]);
-                return res.status(201).json({ message: 'Take profit records created successfully', data: newTakeProfits, status: true });
-            })
-            .catch(err => {
-                console.error('Error creating take_profit records:', err);
+        pool.query(insertOpenPriceQuery, openPriceValues, (openPriceErr, openPriceResult) => {
+            if (openPriceErr) {
+                console.error('Error inserting open_price:', openPriceErr);
                 return res.status(500).json({ error: 'Internal server error', status: false });
-            });
-    });
+            }
 
+            const openPriceRow = openPriceResult.rows[0];
+            const takeProfitValues = take_profits.slice(1).map(tp => [signal_id, openPriceRow.open_price, tp.take_profit]);
+
+            // Insert the remaining take_profit values
+            const insertTakeProfitQuery = `
+                INSERT INTO take_profit (signal_id, open_price, take_profit)
+                VALUES ($1, $2, $3)
+                RETURNING *
+            `;
+
+            // Create an array to hold all the insert queries
+            const insertQueries = takeProfitValues.map(tpValues => pool.query(insertTakeProfitQuery, tpValues));
+
+            // Execute all insert queries in parallel
+            Promise.all(insertQueries)
+                .then(takeProfitResults => {
+                    const newTakeProfits = takeProfitResults.map(result => result.rows[0]);
+                    return res.status(201).json({ message: 'Take profit records created successfully', data: newTakeProfits, status: true });
+                })
+                .catch(err => {
+                    console.error('Error creating take_profit records:', err);
+                    return res.status(500).json({ error: 'Internal server error', status: false });
+                });
+        });
+    });
 }
 
 const getAllTakeProfits = (req, res) => {
-    // Query to retrieve all take profits
+    const { page = 1, limit = 10 } = req.query;
+
+    // Calculate the OFFSET based on the page and limit
+    const offset = (page - 1) * limit;
+
+    // Query to retrieve all take profits with pagination
     const query = `
         SELECT *
         FROM take_profit
+        OFFSET ${offset}
+        LIMIT ${limit}
     `;
 
     pool.query(query, (err, result) => {
@@ -63,9 +84,10 @@ const getAllTakeProfits = (req, res) => {
         }
 
         const allTakeProfits = result.rows;
-        return res.status(200).json({ msg: "All Take Profits Fetched", data: allTakeProfits, status: true });
+        return res.status(200).json({ msg: "Take Profits fetched successfully", count: allTakeProfits.length, data: allTakeProfits, status: true });
     });
 };
+
 
 const getTakeProfitsBySignalId = (req, res) => {
     const signalId = req.params.signal_id;
@@ -116,9 +138,8 @@ const getTakeProfitbyID = (req, res) => {
     });
 };
 
-const updateTakeProfit = (req, res) => { 
-
-    const { signal_id, take_profits } = req.body;
+const updateTakeProfit = (req, res) => {
+    const { signal_id, open_price, take_profits } = req.body;
 
     // Check if the signal_id exists in the signals table
     const checkSignalQuery = `
@@ -151,7 +172,7 @@ const updateTakeProfit = (req, res) => {
         const updateQueries = take_profits
             .filter(tp => tp.take_profit_id) // Filter only the records with take_profit_id
             .map(tp => {
-                const takeProfitValues = [signal_id, tp.open_price, tp.take_profit, tp.take_profit_id];
+                const takeProfitValues = [signal_id, open_price, tp.take_profit, tp.take_profit_id];
                 return pool.query(updateTakeProfitQuery, takeProfitValues);
             });
 
@@ -165,7 +186,7 @@ const updateTakeProfit = (req, res) => {
         const insertQueries = take_profits
             .filter(tp => !tp.take_profit_id) // Filter only the records without take_profit_id
             .map(tp => {
-                const takeProfitValues = [signal_id, tp.open_price, tp.take_profit];
+                const takeProfitValues = [signal_id, open_price, tp.take_profit];
                 return pool.query(insertTakeProfitQuery, takeProfitValues);
             });
 
