@@ -59,9 +59,9 @@ CREATE TABLE IF NOT EXISTS Users (
   token VARCHAR(255),
   signup_type VARCHAR(255), 
   image VARCHAR(255),
+  device_id VARCHAR(255),
   deleted_status BOOLEAN DEFAULT false, 
-  deleted_at TIMESTAMP,
-  delete_after TIMESTAMP,
+  deleted_at TIMESTAMP, 
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 );
@@ -94,3 +94,13 @@ CREATE TABLE IF NOT EXISTS ratelink (
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
 ); 
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  sender_id INT REFERENCES Admin(id),
+  receiver_id INT REFERENCES Users(id),
+  title VARCHAR(255),
+  content VARCHAR(255),
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+);

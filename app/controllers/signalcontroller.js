@@ -1,4 +1,32 @@
-const pool = require("../config/dbconfig")
+const pool = require("../config/dbconfig");
+// const admin = require('firebase-admin');
+// const serviceAccount = require('../../gtcaptionsignals-firebase-adminsdk-ujvae-29a88cdd4e.json'); // Adjust the path
+// // Initialize Firebase Admin SDK
+// admin.initializeApp({
+//     credential: admin.credential.cert(serviceAccount),
+//     projectId: 'gtcaptionsignals',
+//     messagingSenderId: 977631800678
+//   });
+  
+//   // Retrieve the device ID from your database based on the user or some other criteria
+//   const deviceId = 'fGhy3DbKQpq8_vRgeLVU0G:APA91bGku8PiKXzZtETAPoJQaA03djUvMn3PgaRElTzQgPUck7BdHGh432uPFCZNt_yLMiJIAfQIWMGlMgc2gwjR4UDvtuNio3j2itWsYC_QoIsR-k_Zj48OBxOV5bB8Xf_msuhLCaiM';
+  
+//   const message = {
+//     notification: {
+//       title: 'Your Notification Title',
+//       body: 'Your Notification Body',
+//     },
+//     token: deviceId, // Use the device ID instead of registration token
+//   };
+  
+//   // Send a message to the device corresponding to the provided device ID
+//   admin.messaging().send(message)
+//     .then((response) => {
+//       console.log('Successfully sent message:', response);
+//     })
+//     .catch((error) => {
+//       console.error('Error sending message:', error);
+//     });
 
 const createsignal = (req, res) => {
     const { title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss } = req.body;
