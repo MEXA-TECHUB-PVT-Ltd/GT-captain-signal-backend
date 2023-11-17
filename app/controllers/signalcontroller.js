@@ -1,32 +1,44 @@
 const pool = require("../config/dbconfig");
+const FCM = require('fcm-node');
+
+const serverKey = "AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG";
+const fcm = new FCM(serverKey);
+
+const message = {
+    notification: {
+        title: "Notification Title",
+        body: "Notification body"
+    },
+    to: "fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm"
+}
+
+fcm.send(message, function (err, response) {
+    if (err) {
+        console.error("Error sending message", err);
+    } else {
+        console.error("Successfully Send message", response, message.notification);
+    }
+})
 // const admin = require('firebase-admin');
 // const serviceAccount = require('../../gtcaptionsignals-firebase-adminsdk-ujvae-29a88cdd4e.json'); // Adjust the path
-// // Initialize Firebase Admin SDK
+
 // admin.initializeApp({
 //     credential: admin.credential.cert(serviceAccount),
-//     projectId: 'gtcaptionsignals',
-//     messagingSenderId: 977631800678
-//   });
-  
-//   // Retrieve the device ID from your database based on the user or some other criteria
-//   const deviceId = 'fGhy3DbKQpq8_vRgeLVU0G:APA91bGku8PiKXzZtETAPoJQaA03djUvMn3PgaRElTzQgPUck7BdHGh432uPFCZNt_yLMiJIAfQIWMGlMgc2gwjR4UDvtuNio3j2itWsYC_QoIsR-k_Zj48OBxOV5bB8Xf_msuhLCaiM';
-  
-//   const message = {
+// });
+
+// const messaging = admin.messaging()
+// var payload = {
 //     notification: {
-//       title: 'Your Notification Title',
-//       body: 'Your Notification Body',
+//         title: "This is a Notification",
+//         body: "This is the body of the notification message."
 //     },
-//     token: deviceId, // Use the device ID instead of registration token
-//   };
-  
-//   // Send a message to the device corresponding to the provided device ID
-//   admin.messaging().send(message)
-//     .then((response) => {
-//       console.log('Successfully sent message:', response);
+//     topic: 'topic'
+// };
+
+// messaging.send(payload)
+//     .then((result) => {
+//         console.log("Success : ",result)
 //     })
-//     .catch((error) => {
-//       console.error('Error sending message:', error);
-//     });
 
 const createsignal = (req, res) => {
     const { title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss } = req.body;
