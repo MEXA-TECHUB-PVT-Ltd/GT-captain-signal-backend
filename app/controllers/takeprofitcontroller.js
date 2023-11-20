@@ -37,7 +37,7 @@ const createTakeProfit = (req, res) => {
             }
 
             const openPriceRow = openPriceResult.rows[0];
-            const takeProfitValues = take_profits.slice(1).map(tp => [signal_id, openPriceRow.open_price, tp.take_profit]);
+            const takeProfitValues = take_profits.map(tp => [signal_id, openPriceRow.open_price, tp.take_profit]);
 
             // Insert the remaining take_profit values
             const insertTakeProfitQuery = `
@@ -197,7 +197,7 @@ const updateTakeProfit = (req, res) => {
                 return res.status(200).json({ msg: 'Take profit records updated successfully', data: updatedTakeProfits, error: false });
             })
             .catch(err => {
-                console.error('Error updating/creating take_profit records:', err);
+                console.error('Error updating take_profit records:', err);
                 return res.status(500).json({ msg: 'Internal server error', error: true });
             });
     });

@@ -22,14 +22,9 @@ const usersignup = async (req, res) => {
     // Check if the email or device_id already exists in the database
     try {
         const emailExists = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
-        const deviceExists = await pool.query('SELECT * FROM Users WHERE device_id = $1', [device_id]);
 
         if (emailExists.rows.length > 0) {
             return res.status(400).json({ error: true, msg: 'Email already exists' });
-        }
-
-        if (deviceExists.rows.length > 0) {
-            return res.status(400).json({ error: true, msg: 'Device already exists' });
         }
 
         // Initialize variables for password and token
@@ -66,7 +61,7 @@ const usersignup = async (req, res) => {
 };
 
 const usersignin = async (req, res) => {
-    const { email, password, signup_type, device_id } = req.body;
+    const { email, password } = req.body;
 
     // Validate email format
     if (!isValidEmail(email)) {
@@ -81,36 +76,33 @@ const usersignin = async (req, res) => {
             return res.status(401).json({ error: true, msg: 'User not found' });
         }
 
-        // Check if the provided password matches the hashed password in the database
-        const isPasswordValid = signup_type === 'email' ?
-            await bcrypt.compare(password, user.rows[0].password) :
-            true; // For 'facebook' and 'google' signups, don't compare passwords
+        const userData = user.rows[0]; // User data retrieved from the database
 
-        if (!isPasswordValid) {
-            return res.status(401).json({ error: true, msg: 'Invalid password' });
+        if (userData.signup_type === 'email') {
+            // User signed up using email, require password for login
+            if (!password || typeof password !== 'string') {
+                return res.status(400).json({ error: true, msg: 'Password is required for email login' });
+            }
+
+            const hashedPassword = userData.password;
+
+            // Check if the provided password matches the hashed password in the database
+            const isPasswordValid = await bcrypt.compare(password, hashedPassword);
+
+            if (!isPasswordValid) {
+                return res.status(401).json({ error: true, msg: 'Invalid password' });
+            }
+        } else if (userData.signup_type === 'google' || userData.signup_type === 'facebook') {
+            // User signed up using Google or Facebook, validate token for login
+            const tokenFromDB = userData.token; // Token stored in the database during signup
+            console.log(tokenFromDB);
+            if (!tokenFromDB || typeof tokenFromDB !== 'string') {
+                return res.status(401).json({ error: true, msg: 'Token not found' });
+            }
         }
 
-        let rows; // Define the rows variable outside the if-else block
+        res.status(200).json({ error: false, msg: 'Login successful', data: userData });
 
-        // Check if the device_id is the same as the one stored during signup
-        if (user.rows[0].device_id !== device_id) {
-            // If different, update the device_id
-            await pool.query('UPDATE Users SET device_id = $1 WHERE email = $2', [device_id, email]);
-
-            // Fetch the updated user data
-            const updatedUser = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
-
-            // Assign the updated user data to rows
-            rows = updatedUser.rows[0];
-        } else {
-            // Use the existing user data if device_id is the same
-            rows = user.rows[0];
-        }
-
-        const secretKey = crypto.randomBytes(32).toString('hex');
-        const token = jwt.sign(rows, secretKey, { expiresIn: '1h' }); // Change the secret key and expiration time
-
-        res.status(200).json({ error: false, msg: 'Login successful', data: rows, jwt_token: token });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
@@ -398,54 +390,38 @@ const getalldeletedusers = async (req, res) => {
 
 }
 
-// const restoreuser = async (req, res) => {
-//     const userId = req.params.id;
-
-//     try {
-//         const restoreQuery = 'UPDATE users SET deleted_at = NULL, delete_after = NULL WHERE id = $1 RETURNING *';
-//         const restoreValues = [userId];
-
-//         const restoreResult = await pool.query(restoreQuery, restoreValues);
-
-//         if (restoreResult.rows.length === 0) {
-//             return res.status(404).json({ error: true, msg: 'User not found' });
-//         }
-
-//         res.status(200).json({ error: false, msg: 'User account restored successfully' });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ error: true, msg: 'Internal server error' });
-//     }
-// }
-const deletePermanentlyOldUsers = async (req, res) => {
+const deleteuserpermanently= async (req, res) => {
     try {
-        // Calculate the date 90 days ago from the current date
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        // Extract user ID from the request or any other parameter that identifies the user
+        const userId = req.params.id; // Change this based on your route
 
-        // Convert the date to a PostgreSQL timestamp format
-        const formattedDate = ninetyDaysAgo.toISOString().slice(0, 19).replace("T", " ");
-
-        // Query to delete users with deleted_status=true and deleted_at more than 90 days ago
+        // Query to delete the user and all associated records
         const query = `
             DELETE FROM Users
-            WHERE deleted_status = true AND deleted_at < $1
+            WHERE id = $1
             RETURNING *;
         `;
 
-        const result = await pool.query(query, [formattedDate]);
+        const result = await pool.query(query, [userId]);
 
-        const deletedUsers = result.rows;
+        const deletedUser = result.rows[0]; // Assuming only one user is deleted
+        if (!deletedUser) {
+            return res.status(404).json({
+                msg: "User not found",
+                error: true,
+                data: null
+            });
+        } 
+
         return res.status(200).json({
-            msg: "Users deleted permanently",
+            msg: "User deleted successfully",
             error: false,
-            count: deletedUsers.length,
-            data: deletedUsers
+            data: deletedUser
         });
     } catch (error) {
-        console.error('Error deleting users permanently:', error);
+        console.error('Error deleting user and associated records:', error);
         res.status(500).json({ msg: 'Internal server error', error: true });
     }
 };
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers, deletePermanentlyOldUsers };
+module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers,deleteuserpermanently };

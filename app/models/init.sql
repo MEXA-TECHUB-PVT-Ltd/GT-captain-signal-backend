@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS signals (
     profit_loss VARCHAR(255) NOT NULL,
     trade_result VARCHAR(255) NOT NULL,
     trade_probability DECIMAL,
+    time_frame DECIMAL,
     created_at timestamp DEFAULT NOW(),
-  updated_at timestamp DEFAULT NOW()
+    updated_at timestamp DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS wishlist (

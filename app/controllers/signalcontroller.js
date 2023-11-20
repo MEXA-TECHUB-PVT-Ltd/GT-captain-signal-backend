@@ -1,54 +1,48 @@
 const pool = require("../config/dbconfig");
 const FCM = require('fcm-node');
 
-const serverKey = "AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG";
-const fcm = new FCM(serverKey);
-
-const message = {
-    notification: {
-        title: "Notification Title",
-        body: "Notification body"
-    },
-    to: "fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm"
-}
-
-fcm.send(message, function (err, response) {
-    if (err) {
-        console.error("Error sending message", err);
-    } else {
-        console.error("Successfully Send message", response, message.notification);
-    }
-})
-// const admin = require('firebase-admin');
-// const serviceAccount = require('../../gtcaptionsignals-firebase-adminsdk-ujvae-29a88cdd4e.json'); // Adjust the path
-
-// admin.initializeApp({
-//     credential: admin.credential.cert(serviceAccount),
-// });
-
-// const messaging = admin.messaging()
-// var payload = {
-//     notification: {
-//         title: "This is a Notification",
-//         body: "This is the body of the notification message."
-//     },
-//     topic: 'topic'
-// };
-
-// messaging.send(payload)
-//     .then((result) => {
-//         console.log("Success : ",result)
-//     })
-
 const createsignal = (req, res) => {
-    const { title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss } = req.body;
+    const {
+        title,
+        price,
+        date,
+        time,
+        signal_status,
+        action,
+        stop_loss,
+        trade_result,
+        trade_probability,
+        profit_loss,
+        time_frame
+    } = req.body;
 
-    if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_result || !trade_probability || !profit_loss) {
-        return res.status(400).json({ msg: 'Request body cannot be empty', error: true });
+    if (
+        !title ||
+        !price ||
+        !date ||
+        !time ||
+        !signal_status ||
+        !action ||
+        !stop_loss ||
+        !trade_result ||
+        !trade_probability ||
+        !profit_loss ||
+        !time_frame
+    ) {
+        return res
+            .status(400)
+            .json({ msg: 'Request body cannot be empty', error: true });
     }
 
-    if (!['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) || !['BUY', 'SELL'].includes(action) || !['WAITING', 'ANNOUNCED'].includes(profit_loss) || !['WAITING', 'ANNOUNCED'].includes(trade_result)) {
-        return res.status(400).json({ msg: 'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL. Profit_loss and trade_result can be waiting or announced.', error: true });
+    if (
+        !['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) ||
+        !['BUY', 'SELL'].includes(action)
+    ) {
+        return res.status(400).json({
+            msg:
+                'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL. Profit_loss and trade_result can be waiting or announced.',
+            error: true
+        });
     }
 
     // Validate and format the time value
@@ -58,14 +52,21 @@ const createsignal = (req, res) => {
     }
 
     // Check the relationship between profit_loss and trade_result
-    if ((profit_loss === 'WAITING' && trade_result !== 'WAITING') || (profit_loss === 'ANNOUNCED' && trade_result !== 'ANNOUNCED')) {
-        return res.status(400).json({ msg: 'If profit_loss is WAITING, trade_result should be WAITING. If profit_loss is ANNOUNCED, trade_result should be ANNOUNCED.', error: true });
+    if (
+        (profit_loss === 'WAITING' && trade_result !== 'WAITING') ||
+        (profit_loss === 'ANNOUNCED' && isNaN(trade_result))
+    ) {
+        return res.status(400).json({
+            msg:
+                'If profit_loss is WAITING, trade_result should be WAITING. If profit_loss is ANNOUNCED, trade_result can be any value.',
+            error: true
+        });
     }
 
     // Insert the new signal into the database
     const insertSignalQuery = `
-        INSERT INTO signals (title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO signals (title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss, time_frame)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
     `;
 
@@ -80,17 +81,52 @@ const createsignal = (req, res) => {
         trade_result,
         trade_probability,
         profit_loss,
+        time_frame
     ];
 
     pool.query(insertSignalQuery, signalValues, (err, signalResult) => {
         if (err) {
             console.error('Error creating signal:', err);
-            return res.status(500).json({ msg: 'Internal server error', error: true });
+            return res
+                .status(500)
+                .json({ msg: 'Internal server error', error: true });
         }
 
         const newSignal = signalResult.rows[0];
         const emptyTakeProfit = [];
-        return res.status(201).json({ msg: 'Signal created successfully', data: newSignal, take_profit: emptyTakeProfit, error: false });
+
+        // Sending notification after successfully creating the signal
+        const serverKey =
+            'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
+        const fcm = new FCM(serverKey);
+
+        const message = {
+            notification: {
+                title: 'Signal',
+                body: 'New Signal Created'
+            },
+            to:
+                'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
+        };
+
+        fcm.send(message, function (err, response) {
+            if (err) {
+                console.error('Error sending message', err);
+            } else {
+                console.log(
+                    'Successfully sent message',
+                    response,
+                    message.notification
+                );
+            }
+        });
+
+        return res.status(201).json({
+            msg: 'Signal created successfully',
+            data: newSignal,
+            take_profit: emptyTakeProfit,
+            error: false
+        });
     });
 };
 
@@ -133,6 +169,7 @@ const gettallsignals = (req, res) => {
                     profit_loss: row.profit_loss,
                     trade_result: row.trade_result,
                     trade_probability: row.trade_probability,
+                    time_frame: row.time_frame,
                     created_at: row.created_at,
                     updated_at: row.updated_at,
                     take_profit: [],
@@ -149,7 +186,7 @@ const gettallsignals = (req, res) => {
             }
         }
 
-        return res.status(200).json({ msg: "Signals fetched successfully", data: signalsWithTakeProfits, status: true });
+        return res.status(200).json({ msg: "Signals fetched successfully", status: true, count: signalsWithTakeProfits.length, data: signalsWithTakeProfits });
     });
 };
 
@@ -193,6 +230,7 @@ const getSignalById = (req, res) => {
             signalWithTakeProfits.trade_result = row.trade_result;
             signalWithTakeProfits.profit_loss = row.profit_loss;
             signalWithTakeProfits.trade_probability = row.trade_probability;
+            signalWithTakeProfits.time_frame = row.time_frame;
             signalWithTakeProfits.created_at = row.created_at;
             signalWithTakeProfits.updated_at = row.updated_at;
 
@@ -237,15 +275,16 @@ const updateSignalById = (req, res) => {
             trade_result = existingData.trade_result,
             trade_probability = existingData.trade_probability,
             profit_loss = existingData.profit_loss,
+            time_frame = existingData.time_frame
         } = req.body;
 
         // Apply similar checks as in the createsignal function
-        if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_result || !trade_probability || !profit_loss) {
+        if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_result || !trade_probability || !profit_loss || !time_frame) {
             return res.status(400).json({ msg: 'Request body cannot be empty', error: true });
         }
 
-        if (!['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) || !['BUY', 'SELL'].includes(action) || !['WAITING', 'ANNOUNCED'].includes(profit_loss) || !['WAITING', 'ANNOUNCED'].includes(trade_result)) {
-            return res.status(400).json({ msg: 'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL. Profit_loss and trade_result can be WAITING or ANNOUNCED.', error: true });
+        if (!['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) || !['BUY', 'SELL'].includes(action)) {
+            return res.status(400).json({ msg: 'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL.', error: true });
         }
 
         // Validate and format the time value
@@ -254,9 +293,15 @@ const updateSignalById = (req, res) => {
             return res.status(400).json({ msg: 'Invalid time format', error: true });
         }
 
-        // Check the relationship between profit_loss and trade_result
-        if ((trade_result === 'WAITING' && profit_loss !== 'WAITING') || (trade_result === 'ANNOUNCED' && profit_loss !== 'ANNOUNCED')) {
-            return res.status(400).json({ msg: 'If trade_result is WAITING, profit_loss should be WAITING. If trade_result is ANNOUNCED, profit_loss should be ANNOUNCED.', error: true });
+        if (
+            (trade_result === 'WAITING' && profit_loss !== 'WAITING') ||
+            (trade_result === 'ANNOUNCED' && isNaN(profit_loss))
+        ) {
+            return res.status(400).json({
+                msg:
+                    'If trade_result is WAITING, profit_loss should be WAITING. If trade_result is ANNOUNCED, profit_loss can be any numerical value.',
+                error: true
+            });
         }
 
         // Update the signal in the database
@@ -268,7 +313,7 @@ const updateSignalById = (req, res) => {
         `;
 
         const values = [
-            title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss, signalId
+            title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss, signalId, time_frame
         ];
 
         pool.query(query, values, (err, result) => {

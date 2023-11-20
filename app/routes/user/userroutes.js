@@ -11,6 +11,6 @@ router.post('/password/forgetpassword', userController.forgetpassword);
 router.put('/password/updatepassword', userController.updatepassword); 
 router.delete('/deleteuser/:id', userController.deleteuser); 
 router.get('/deleteusers/getall', userController.getalldeletedusers); 
-// router.post('/restore/restoreusers/:id', userController.deletePermanentlyOldUsers);  
+router.delete('/deleteuserpermanently/:id', userController.deleteuserpermanently);  
 
 module.exports = router;
