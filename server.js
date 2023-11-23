@@ -1,4 +1,7 @@
 const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors'); 
 const dotenv = require('dotenv')
 const socketIo = require('socket.io');
@@ -23,7 +26,42 @@ app.use(cors({
 
 app.use(express.json())
 
-app.use('/uploadimage', imageUploadRouter);
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      // Check the 'type' field in the request to determine the folder
+      const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
+      const uploadPath = `./uploads/${uploadType}`;
+  
+      // Check if the directory exists, if not, create it
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+  
+      cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+      cb(null, `${Date.now()}_${file.originalname}`);
+    },
+  });
+  
+  const upload = multer({ storage });
+  
+  // POST endpoint for uploading images
+  app.post('/upload', upload.single('image'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).send('No file uploaded.');
+    }
+  
+    const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
+    const imageUrl = `uploads/${uploadType}/${req.file.filename}`;
+  
+    res.status(200).json({ imageUrl: imageUrl });
+  });
+  
+  // Serve uploaded images statically
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// app.use('/uploadimage', imageUploadRouter);
 app.use("/admin", require("./app/routes/admin/adminroutes"))
 app.use("/user", require("./app/routes/user/userroutes"))
 app.use("/applink", require("./app/routes/applink/applinkroutes"))

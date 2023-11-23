@@ -79,7 +79,7 @@ const usersignin = async (req, res) => {
         const userData = user.rows[0]; // User data retrieved from the database
 
         if (userData.signup_type === 'email') {
-            // User signed up using email, require password for login
+            // User signed up using email, require both email and password for login
             if (!password || typeof password !== 'string') {
                 return res.status(400).json({ error: true, msg: 'Password is required for email login' });
             }
@@ -93,11 +93,9 @@ const usersignin = async (req, res) => {
                 return res.status(401).json({ error: true, msg: 'Invalid password' });
             }
         } else if (userData.signup_type === 'google' || userData.signup_type === 'facebook') {
-            // User signed up using Google or Facebook, validate token for login
-            const tokenFromDB = userData.token; // Token stored in the database during signup
-            console.log(tokenFromDB);
-            if (!tokenFromDB || typeof tokenFromDB !== 'string') {
-                return res.status(401).json({ error: true, msg: 'Token not found' });
+            // User signed up using Google or Facebook, only email is required
+            if (password && typeof password === 'string') {
+                return res.status(400).json({ error: true, msg: 'Password is not required for google and facebook login' });
             }
         }
 

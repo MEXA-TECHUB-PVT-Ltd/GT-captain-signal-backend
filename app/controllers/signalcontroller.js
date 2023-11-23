@@ -306,14 +306,17 @@ const updateSignalById = (req, res) => {
 
         // Update the signal in the database
         const query = `
-            UPDATE signals
-            SET title = $1, price = $2, date = $3, time = $4, signal_status = $5, action = $6, stop_loss = $7, trade_result = $8, trade_probability = $9, profit_loss = $10
-            WHERE signal_id = $11
-            RETURNING *
-        `;
+        UPDATE signals
+        SET title = $1, price = $2, date = $3, time = $4, signal_status = $5, 
+        action = $6, stop_loss = $7, trade_result = $8, trade_probability = $9, 
+        profit_loss = $10, time_frame = $11 /* Add your missing parameter here */
+        WHERE signal_id = $12
+        RETURNING *
+    `;
 
         const values = [
-            title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss, signalId, time_frame
+            title, price, date, time, signal_status, action, stop_loss, trade_result,
+            trade_probability, profit_loss, time_frame, signalId
         ];
 
         pool.query(query, values, (err, result) => {
