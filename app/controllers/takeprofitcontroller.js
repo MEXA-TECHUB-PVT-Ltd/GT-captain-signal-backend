@@ -3,65 +3,42 @@ const pool = require("../config/dbconfig")
 const createTakeProfit = (req, res) => {
     const { signal_id, open_price, take_profits } = req.body;
 
-    // Check if the signal_id exists in the signals table
     const checkSignalQuery = `
         SELECT signal_id FROM signals WHERE signal_id = $1
     `;
 
-    const signalValues = [signal_id];
-
-    pool.query(checkSignalQuery, signalValues, (signalErr, signalResult) => {
+    pool.query(checkSignalQuery, [signal_id], (signalErr, signalResult) => {
         if (signalErr) {
             console.error('Error checking signal:', signalErr);
             return res.status(500).json({ error: 'Internal server error', status: false });
         }
 
-        // Check if a signal with the provided signal_id exists
         if (signalResult.rows.length === 0) {
             return res.status(400).json({ error: 'Signal with this id not found', status: false });
         }
 
-        // If the signal_id exists, insert the open_price into the database
-        const insertOpenPriceQuery = `
+        // Create an array of parameter sets for each take profit
+        const insertValues = take_profits.map(tp => [signal_id, open_price, tp.take_profit]);
+
+        const insertTakeProfitQuery = `
             INSERT INTO take_profit (signal_id, open_price, take_profit)
-            VALUES ($1, $2, $3)
+            VALUES ${insertValues.map((_, index) => `($${index * 3 + 1}, $${index * 3 + 2}, $${index * 3 + 3})`).join(',')}
             RETURNING *
         `;
 
-        const openPriceValues = [signal_id, open_price, take_profits[0].take_profit]; // Assuming take_profits array is not empty
+        const allValues = insertValues.flat();
 
-        pool.query(insertOpenPriceQuery, openPriceValues, (openPriceErr, openPriceResult) => {
-            if (openPriceErr) {
-                console.error('Error inserting open_price:', openPriceErr);
+        pool.query(insertTakeProfitQuery, allValues, (takeProfitErr, takeProfitResult) => {
+            if (takeProfitErr) {
+                console.error('Error inserting take_profits:', takeProfitErr);
                 return res.status(500).json({ error: 'Internal server error', status: false });
             }
 
-            const openPriceRow = openPriceResult.rows[0];
-            const takeProfitValues = take_profits.map(tp => [signal_id, openPriceRow.open_price, tp.take_profit]);
-
-            // Insert the remaining take_profit values
-            const insertTakeProfitQuery = `
-                INSERT INTO take_profit (signal_id, open_price, take_profit)
-                VALUES ($1, $2, $3)
-                RETURNING *
-            `;
-
-            // Create an array to hold all the insert queries
-            const insertQueries = takeProfitValues.map(tpValues => pool.query(insertTakeProfitQuery, tpValues));
-
-            // Execute all insert queries in parallel
-            Promise.all(insertQueries)
-                .then(takeProfitResults => {
-                    const newTakeProfits = takeProfitResults.map(result => result.rows[0]);
-                    return res.status(201).json({ message: 'Take profit records created successfully', data: newTakeProfits, status: true });
-                })
-                .catch(err => {
-                    console.error('Error creating take_profit records:', err);
-                    return res.status(500).json({ error: 'Internal server error', status: false });
-                });
+            const newTakeProfits = takeProfitResult.rows;
+            return res.status(201).json({ message: 'Take profit records created successfully', data: newTakeProfits, status: true });
         });
     });
-}
+};
 
 const getAllTakeProfits = (req, res) => {
     const { page = 1, limit = 10 } = req.query;
@@ -87,7 +64,6 @@ const getAllTakeProfits = (req, res) => {
         return res.status(200).json({ msg: "Take Profits fetched successfully", count: allTakeProfits.length, data: allTakeProfits, status: true });
     });
 };
-
 
 const getTakeProfitsBySignalId = (req, res) => {
     const signalId = req.params.signal_id;
