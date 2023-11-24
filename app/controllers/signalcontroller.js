@@ -241,20 +241,97 @@ const createsignal = (req, res) => {
     });
 };
 
+const updateSignalResult = (req, res) => {
+    const { signal_id } = req.params; // Assuming you get the signal_id from the request params
+    const { image, profit_loss } = req.body; // Image and profit_loss to be updated
+
+    // Check if either image or profit_loss is provided
+    if (!image && !profit_loss) {
+        return res.status(400).json({ msg: 'Image or profit_loss is required for update', error: true });
+    }
+
+    // Check if the provided profit_loss is valid
+    if (profit_loss && !['PROFIT', 'LOSS'].includes(profit_loss)) {
+        return res.status(400).json({ msg: 'Profit_loss can only be PROFIT or LOSS', error: true });
+    }
+
+    // Check if the provided signal_id is valid
+    const findSignalQuery = `
+        SELECT * FROM signals
+        WHERE signal_id = $1
+    `;
+
+    pool.query(findSignalQuery, [signal_id], (err, signalResult) => {
+        if (err) {
+            console.error('Error finding signal:', err);
+            return res.status(500).json({ msg: 'Internal server error', error: true });
+        }
+
+        if (signalResult.rows.length === 0) {
+            return res.status(404).json({ msg: 'Signal not found', error: true });
+        }
+
+        const currentSignal = signalResult.rows[0];
+        let updateFields = [];
+        const updateValues = [];
+
+        if (image) {
+            updateFields.push('image = $1');
+            updateValues.push(image);
+        }
+
+        if (profit_loss) {
+            updateFields.push('profit_loss = $2, result = true');
+            updateValues.push(profit_loss);
+        }
+
+        const updateQuery = `
+            UPDATE signals
+            SET ${updateFields.join(', ')}, updated_at = NOW()
+            WHERE signal_id = $${updateValues.length + 1}
+            RETURNING *
+        `;
+        updateValues.push(signal_id);
+
+        pool.query(updateQuery, updateValues, (err, updateResult) => {
+            if (err) {
+                console.error('Error updating signal:', err);
+                return res.status(500).json({ msg: 'Internal server error', error: true });
+            }
+
+            const updatedSignal = updateResult.rows[0];
+
+            // Check if profit_loss was updated and set result to true
+            if (profit_loss) {
+                return res.status(200).json({
+                    msg: 'Signal updated successfully with result set to true',
+                    data: updatedSignal,
+                    error: false
+                });
+            }
+
+            return res.status(200).json({
+                msg: 'Signal updated successfully',
+                data: updatedSignal,
+                error: false
+            });
+        });
+    });
+}
+
 const gettallsignals = (req, res) => {
     const { page = 1, limit = 10 } = req.query;
 
     // Calculate the OFFSET based on the page and limit
     const offset = (page - 1) * limit;
 
-    // Query to retrieve all signals and their associated take profits and signal results with pagination
+    // Query to retrieve all signals and their associated take profits without signal result details with pagination
     const query = `
-      SELECT s.*, t.take_profit_id, t.open_price, t.take_profit, r.image AS result_image, r.profit_loss AS result_profit_loss
-      FROM signals s
-      LEFT JOIN take_profit t ON s.signal_id = t.signal_id
-      LEFT JOIN signalresult r ON s.signal_id = r.signal_id
-      OFFSET ${offset}
-      LIMIT ${limit}
+        SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
+        FROM signals s
+        LEFT JOIN take_profit t ON s.signal_id = t.signal_id
+        OFFSET ${offset}
+        LIMIT ${limit}
     `;
 
     pool.query(query, (err, result) => {
@@ -278,14 +355,15 @@ const gettallsignals = (req, res) => {
                     signal_status: row.signal_status,
                     action: row.action,
                     stop_loss: row.stop_loss,
-                    profit_loss: row.profit_loss, // Signal result's profit_loss field
+                    profit_loss: row.profit_loss,
+                    result: row.result,
+                    image: row.image,
                     trade_result: row.trade_result,
                     trade_probability: row.trade_probability,
                     time_frame: row.time_frame,
                     created_at: row.created_at,
                     updated_at: row.updated_at,
                     take_profit: [],
-                    signal_results: [], // Array to store signal result details
                 };
                 signalsWithTakeProfits.push(currentSignal);
             }
@@ -297,23 +375,10 @@ const gettallsignals = (req, res) => {
                     take_profit: row.take_profit,
                 });
             }
-
-            if (row.result_image && row.result_profit_loss) {
-                const existingResult = currentSignal.signal_results.find(
-                    (result) => result.image === row.result_image && result.profit_loss === row.result_profit_loss && result.profit_loss === row.result_profit_loss
-                );
-
-                if (!existingResult) {
-                    currentSignal.signal_results.push({
-                        image: row.result_image,
-                        profit_loss: row.result_profit_loss,
-                    });
-                }
-            }
         }
 
         return res.status(200).json({
-            msg: 'Signals fetched successfully',
+            msg: 'Signals fetched successfully without signal results',
             status: true,
             count: signalsWithTakeProfits.length,
             data: signalsWithTakeProfits,
@@ -323,76 +388,61 @@ const gettallsignals = (req, res) => {
 
 const getSignalById = (req, res) => {
     const signalId = req.params.signal_id; // Assuming you pass the signal_id as a parameter
-  
-    // Query to retrieve a specific signal, its associated take profits, and signal results
+
+    // Query to retrieve a specific signal and its associated take profits without signal results
     const query = `
-    SELECT s.*, t.take_profit_id, t.open_price, t.take_profit, r.id AS signal_result_id, r.image AS result_image, r.profit_loss AS result_profit_loss
-    FROM signals s
-    LEFT JOIN take_profit t ON s.signal_id = t.signal_id
-    LEFT JOIN signalresult r ON s.signal_id = r.signal_id
-    WHERE s.signal_id = $1
-  `;
-  
+        SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
+        FROM signals s
+        LEFT JOIN take_profit t ON s.signal_id = t.signal_id
+        WHERE s.signal_id = $1
+    `;
+
     pool.query(query, [signalId], (err, result) => {
-      if (err) {
-        console.error('Error fetching signal:', err);
-        return res.status(500).json({ error: 'Internal server error' });
-      }
-  
-      if (result.rows.length === 0) {
-        // The signal with the specified signal_id was not found
-        return res.status(404).json({ status: false, error: 'Signal not found' });
-      }
-  
-      // Process the result and send the response
-      const signalWithTakeProfits = {
-        signal_id: signalId,
-        take_profit: [],
-        signal_results: [],
-      };
-  
-      for (const row of result.rows) {
-        signalWithTakeProfits.title = row.title;
-        signalWithTakeProfits.price = row.price;
-        signalWithTakeProfits.date = row.date;
-        signalWithTakeProfits.time = row.time;
-        signalWithTakeProfits.signal_status = row.signal_status;
-        signalWithTakeProfits.action = row.action;
-        signalWithTakeProfits.stop_loss = row.stop_loss;
-        signalWithTakeProfits.trade_result = row.trade_result;
-        signalWithTakeProfits.profit_loss = row.profit_loss;
-        signalWithTakeProfits.trade_probability = row.trade_probability;
-        signalWithTakeProfits.time_frame = row.time_frame;
-        signalWithTakeProfits.created_at = row.created_at;
-        signalWithTakeProfits.updated_at = row.updated_at;
-  
-        if (row.open_price && row.take_profit) {
-          signalWithTakeProfits.take_profit.push({
-            take_profit_id: row.take_profit_id,
-            open_price: row.open_price,
-            take_profit: row.take_profit,
-          });
+        if (err) {
+            console.error('Error fetching signal:', err);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-  
-        if (row.result_image && row.result_profit_loss) {
-          const existingResult = signalWithTakeProfits.signal_results.find(
-            (result) => result.image === row.result_image && result.profit_loss === row.result_profit_loss
-          );
-  
-          if (!existingResult) {
-            signalWithTakeProfits.signal_results.push({
-              signal_result_id: row.signal_result_id,
-              image: row.result_image,
-              profit_loss: row.result_profit_loss,
-            });
-          }
+
+        if (result.rows.length === 0) {
+            // The signal with the specified signal_id was not found
+            return res.status(404).json({ status: false, error: 'Signal not found' });
         }
-      }
-  
-      return res.status(200).json({ msg: 'Signal fetched', data: signalWithTakeProfits, status: true });
+
+        // Process the result and send the response
+        const signalWithTakeProfits = {
+            signal_id: signalId,
+            take_profit: [],
+        };
+
+        for (const row of result.rows) {
+            signalWithTakeProfits.title = row.title;
+            signalWithTakeProfits.price = row.price;
+            signalWithTakeProfits.date = row.date;
+            signalWithTakeProfits.time = row.time;
+            signalWithTakeProfits.signal_status = row.signal_status;
+            signalWithTakeProfits.action = row.action;
+            signalWithTakeProfits.stop_loss = row.stop_loss;
+            signalWithTakeProfits.result = row.result;
+            signalWithTakeProfits.profit_loss = row.profit_loss;
+            signalWithTakeProfits.profit_loss = row.image;
+            signalWithTakeProfits.trade_probability = row.trade_probability;
+            signalWithTakeProfits.time_frame = row.time_frame;
+            signalWithTakeProfits.created_at = row.created_at;
+            signalWithTakeProfits.updated_at = row.updated_at;
+
+            if (row.open_price && row.take_profit) {
+                signalWithTakeProfits.take_profit.push({
+                    take_profit_id: row.take_profit_id,
+                    open_price: row.open_price,
+                    take_profit: row.take_profit,
+                });
+            }
+        }
+
+        return res.status(200).json({ msg: 'Signal fetched', data: signalWithTakeProfits, status: true });
     });
-  };
-  
+};
+
 const updateSignalById = (req, res) => {
     const signalId = req.params.signal_id;
 
@@ -640,4 +690,55 @@ const createSignalResult = async (req, res) => {
     }
 };
 
-module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult };
+// const updateSignalResult = async (req, res) => {
+//     const signalId = req.params.signal_id;
+//     const signalResultId = req.params.id;
+//     const { image, result, profit_loss } = req.body;
+
+//     try {
+//         // Check if the signal ID exists in signals table
+//         const signalExists = await pool.query('SELECT * FROM signals WHERE signal_id = $1', [signalId]);
+
+//         if (signalExists.rows.length === 0) {
+//             return res.status(404).json({ error: true, msg: 'Signal ID not found!' });
+//         }
+
+//         if (profit_loss !== 'PROFIT' && profit_loss !== 'LOSS') {
+//             return res.status(400).json({ error: true, msg: 'Profit loss can only be PROFIT or LOSS!' });
+//         }
+
+//         let dbresult = result === 'null' ? null : result;
+//         let dbimage = image === 'null' ? null : image;
+
+//         if (profit_loss === 'PROFIT') {
+//             if (dbresult === null || dbimage === null) {
+//                 return res.status(400).json({ error: true, msg: "Result and Image can't be null for PROFIT!" });
+//             }
+//         } else if (profit_loss === 'LOSS') {
+//             if (dbresult !== null || dbimage !== null) {
+//                 return res.status(400).json({ error: true, msg: 'Result and Image should be null for LOSS!' });
+//             }
+//         }
+
+//         // Query to update the signal result based on IDs
+//         const updateQuery = `
+//         UPDATE signalresult
+//         SET image = $1, result = $2, profit_loss = $3
+//         WHERE signal_id = $4 AND signal_result_id = $5
+//       `;
+
+//         const updateResult = await pool.query(updateQuery, [dbimage, dbresult, profit_loss, signalId, signalResultId]);
+
+//         if (updateResult.rowCount === 0) {
+//             // No rows were affected by the update, indicating the signal or signal result ID was not found
+//             return res.status(404).json({ status: false, error: 'Signal or Signal Result not found' });
+//         }
+
+//         return res.status(200).json({ msg: 'Signal Result updated successfully', status: true });
+//     } catch (error) {
+//         console.error('Error updating signal result:', error);
+//         return res.status(500).json({ error: true, msg: 'Internal server error' });
+//     }
+// };
+
+module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult, updateSignalResult };
