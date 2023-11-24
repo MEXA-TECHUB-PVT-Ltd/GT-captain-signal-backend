@@ -277,7 +277,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-const updatepassword = async (req, res) => {
+const resetpassword = async (req, res) => {
     const { email, password } = req.body;
 
     // Validate the new password
@@ -298,6 +298,35 @@ const updatepassword = async (req, res) => {
 
         // Update the user's password in the database
         const result = await pool.query('UPDATE Users SET password = $1 WHERE email = $2 RETURNING *', [hashedPassword, email]);
+
+        res.status(200).json({ error: false, msg: 'Password updated successfully', data: result.rows[0] });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: true, msg: 'Internal server error' });
+    }
+}
+
+const updatePassword = async (req, res) => {
+    const { userId, email, password } = req.body;
+
+    // Validate the new password
+    if (password.length < 6) {
+        return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
+    }
+
+    try {
+        // Check if the user exists in the database
+        const userQueryResult = await pool.query('SELECT * FROM Users WHERE id = $1 AND email = $2', [userId, email]);
+
+        if (userQueryResult.rows.length === 0) {
+            return res.status(404).json({ error: true, msg: 'User with this ID and email not found' });
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Update the user's password in the database
+        const result = await pool.query('UPDATE Users SET password = $1 WHERE id = $2 AND email = $3 RETURNING *', [hashedPassword, userId, email]);
 
         res.status(200).json({ error: false, msg: 'Password updated successfully', data: result.rows[0] });
     } catch (error) {
@@ -422,4 +451,4 @@ const deleteuserpermanently= async (req, res) => {
     }
 };
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, updatepassword, deleteuser, getalldeletedusers,deleteuserpermanently };
+module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword,updatePassword, deleteuser, getalldeletedusers,deleteuserpermanently };

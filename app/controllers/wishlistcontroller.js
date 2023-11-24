@@ -4,9 +4,7 @@ const addToWishlist = (req, res) => {
     const { signal_id, user_id } = req.body;
 
     // Check if the user exists
-    const checkUserExistsQuery = `
-        SELECT * FROM users WHERE id = $1
-    `;
+    const checkUserExistsQuery = `SELECT * FROM users WHERE id = $1`;
 
     pool.query(checkUserExistsQuery, [user_id], (err, userResult) => {
         if (err) {
@@ -19,9 +17,7 @@ const addToWishlist = (req, res) => {
         }
 
         // Check if the signal exists
-        const checkSignalExistsQuery = `
-            SELECT * FROM signals WHERE signal_id = $1
-        `;
+        const checkSignalExistsQuery = `SELECT * FROM signals WHERE signal_id = $1`;
 
         pool.query(checkSignalExistsQuery, [signal_id], (err, signalResult) => {
             if (err) {
@@ -34,9 +30,7 @@ const addToWishlist = (req, res) => {
             }
 
             // Check if the signal_id already exists in the user's wishlist
-            const checkExistingQuery = `
-                SELECT * FROM wishlist WHERE signal_id = $1 AND user_id = $2
-            `;
+            const checkExistingQuery = `SELECT * FROM wishlist WHERE signal_id = $1 AND user_id = $2`;
 
             pool.query(checkExistingQuery, [signal_id, user_id], (err, existingResult) => {
                 if (err) {
@@ -50,8 +44,8 @@ const addToWishlist = (req, res) => {
 
                 // If the signal_id doesn't exist in the user's wishlist, insert it into the wishlist
                 const insertWishlistQuery = `
-                    INSERT INTO wishlist (signal_id, user_id)
-                    VALUES ($1, $2)
+                    INSERT INTO wishlist (signal_id, user_id, wishlist_status)
+                    VALUES ($1, $2, true)
                     RETURNING *
                 `;
 
@@ -63,25 +57,20 @@ const addToWishlist = (req, res) => {
                         return res.status(500).json({ msg: 'Internal server error', error: true });
                     }
 
-                    // Query the signals and users tables to get the signal and user details
-                    const signalId = result.rows[0].signal_id;
-                    const userId = user_id;
+                    const insertedItemId = result.rows[0].id;
+                    const wishlistStatus = result.rows[0].wishlist_status; // Get wishlist_status from the inserted row
 
-                    const selectSignalQuery = `
-                        SELECT * FROM signals WHERE signal_id = $1
-                    `;
+                    // Fetch signal and user details after adding to the wishlist
+                    const selectSignalQuery = `SELECT * FROM signals WHERE signal_id = $1`;
+                    const selectUserQuery = `SELECT * FROM users WHERE id = $1`;
 
-                    const selectUserQuery = `
-                        SELECT * FROM users WHERE id = $1
-                    `;
-
-                    pool.query(selectSignalQuery, [signalId], (err, signalResult) => {
+                    pool.query(selectSignalQuery, [signal_id], (err, signalResult) => {
                         if (err) {
                             console.error('Error retrieving signal details:', err);
                             return res.status(500).json({ msg: 'Internal server error', error: true });
                         }
 
-                        pool.query(selectUserQuery, [userId], (err, userResult) => {
+                        pool.query(selectUserQuery, [user_id], (err, userResult) => {
                             if (err) {
                                 console.error('Error retrieving user details:', err);
                                 return res.status(500).json({ msg: 'Internal server error', error: true });
@@ -89,10 +78,10 @@ const addToWishlist = (req, res) => {
 
                             return res.status(201).json({
                                 msg: 'Signal added to user\'s wishlist successfully',
-                                id: result.rows[0].id,
+                                id: insertedItemId,
+                                wishlist_status: wishlistStatus,
                                 signal: signalResult.rows[0],
-                                user: userResult.rows[0],
-                                error: false,
+                                user: userResult.rows[0], error: false,
                             });
                         });
                     });
@@ -105,7 +94,7 @@ const addToWishlist = (req, res) => {
 const getallwishlists = async (req, res) => {
     try {
         const query = `
-            SELECT signals.*, users.*
+            SELECT wishlist.wishlist_status, signals.*, users.*
             FROM wishlist
             JOIN signals ON wishlist.signal_id = signals.signal_id
             JOIN users ON wishlist.user_id = users.id
@@ -151,7 +140,8 @@ const getallwishlists = async (req, res) => {
                 trade_result: row.trade_result,
                 trade_probability: row.trade_probability,
                 created_at: row.created_at,
-                updated_at: row.updated_at
+                updated_at: row.updated_at,
+                wishlist_status: row.wishlist_status // Include wishlist_status in the response
             });
         });
 
@@ -177,7 +167,7 @@ const getSignalsByUserId = async (req, res) => {
         }
 
         const query = `
-            SELECT signals.*
+            SELECT wishlist.wishlist_status, signals.*
             FROM wishlist
             JOIN signals ON wishlist.signal_id = signals.signal_id
             WHERE wishlist.user_id = $1
@@ -253,6 +243,23 @@ const removesignalbyuserID = async (req, res) => {
 
         const result = await pool.query(removeWishlistQuery, removeValues);
 
+        // Check if there are any remaining signals for the user in the wishlist
+        const remainingSignalsQuery = `
+            SELECT * FROM wishlist WHERE user_id = $1
+        `;
+
+        const remainingSignals = await pool.query(remainingSignalsQuery, [user_id]);
+
+        // If no signals are left in the wishlist for the user, update wishlist_status to false
+        if (remainingSignals.rows.length === 0) {
+            const updateWishlistStatusQuery = `
+                UPDATE wishlist
+                SET wishlist_status = false
+                WHERE user_id = $1
+            `;
+            await pool.query(updateWishlistStatusQuery, [user_id]);
+        }
+
         res.status(200).json({
             msg: 'Signal removed from user\'s wishlist successfully',
             removedSignal: result.rows[0],
@@ -263,6 +270,5 @@ const removesignalbyuserID = async (req, res) => {
         res.status(500).json({ msg: 'Internal Server Error', error: true });
     }
 };
-
 
 module.exports = { addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId, removesignalbyuserID };
