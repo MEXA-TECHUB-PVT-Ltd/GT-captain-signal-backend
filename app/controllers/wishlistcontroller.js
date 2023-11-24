@@ -264,5 +264,20 @@ const removesignalbyuserID = async (req, res) => {
     }
 };
 
+const checksaveitem = async (req, res) => {
+    const { user_id, signal_id } = req.body;
 
-module.exports = { addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId, removesignalbyuserID };
+  try {
+    const checkQuery = 'SELECT * FROM wishlist WHERE user_id = $1 AND signal_id = $2';
+    const checkResult = await pool.query(checkQuery, [user_id, signal_id]);
+    const rows = checkResult.rows;
+
+    const save_status = rows.length > 0; // Rows found means both user_id and signal_id exist together
+
+    res.json({ save_status });
+  } catch (error) {
+    res.status(500).json({ error: true, message: 'Internal server error' });
+  }
+}
+
+module.exports = {checksaveitem, addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId, removesignalbyuserID };

@@ -7,5 +7,6 @@ router.get('/getallwishlist', wishlistController.getallwishlists);
 router.delete('/deletewishlist/signal_id/:signal_id', wishlistController.deletewishlists);
 router.get('/getSignalsByUserId/:userId', wishlistController.getSignalsByUserId);
 router.delete('/removesignalbyuserID', wishlistController.removesignalbyuserID);
+router.post('/check_save_item', wishlistController.checksaveitem); 
 
 module.exports = router;
