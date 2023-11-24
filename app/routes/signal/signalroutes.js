@@ -8,6 +8,6 @@ router.get('/getsignalbyID/:signal_id', signalController.getSignalById);
 router.put('/updatesignal/:signal_id', signalController.updateSignalById);
 router.delete('/deletesignal/:signal_id', signalController.deleteSignalById);
 router.put('/updatesignalstatus/:signal_id', signalController.updateSignalStatus);
-router.get('/getuserssignals/:userId', signalController.getUserSignals); 
-
+router.get('/getuserssignals/:userId', signalController.getUserSignals);  
+router.post('/add_signal_result', signalController.createSignalResult);
 module.exports = router;
