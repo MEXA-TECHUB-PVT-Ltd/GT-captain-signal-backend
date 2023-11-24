@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS wishlist (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     signal_id INTEGER NOT NULL,
+    wishlist_status BOOLEAN DEFAULT false, 
     created_at timestamp DEFAULT NOW(),
     updated_at timestamp DEFAULT NOW()
 );
