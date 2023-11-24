@@ -16,12 +16,21 @@ CREATE TABLE IF NOT EXISTS signals (
     signal_status VARCHAR(10) CHECK (signal_status IN ('ACTIVE', 'INACTIVE', 'EXPIRED')) NOT NULL,
     action VARCHAR(5) CHECK (action IN ('BUY', 'SELL')) NOT NULL,
     stop_loss DECIMAL,
-    profit_loss VARCHAR(255) NOT NULL,
-    trade_result VARCHAR(255) NOT NULL,
+    -- profit_loss VARCHAR(255) NOT NULL,
+    -- trade_result VARCHAR(255) NOT NULL,
     trade_probability DECIMAL,
     time_frame DECIMAL,
     created_at timestamp DEFAULT NOW(),
     updated_at timestamp DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS signalresult (
+    id SERIAL PRIMARY KEY,
+    signal_id INT NOT NULL,
+    image VARCHAR(255),
+    result VARCHAR(255) ,
+    profit_loss VARCHAR(10)  NOT NULL,
+    FOREIGN KEY (signal_id) REFERENCES signals(signal_id)
 );
 
 CREATE TABLE IF NOT EXISTS wishlist (
