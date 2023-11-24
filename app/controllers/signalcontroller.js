@@ -400,4 +400,39 @@ const updateSignalStatus = (req, res) => {
     });
 };
 
-module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus };
+const getUserSignals = async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const signalQuery = `
+            SELECT signals.*
+            FROM wishlist
+            JOIN signals ON wishlist.signal_id = signals.signal_id
+            WHERE wishlist.user_id = $1
+        `;
+
+        const signalResult = await pool.query(signalQuery, [userId]);
+
+        const signalData = signalResult.rows;
+
+        if (signalData.length === 0) {
+            return res.status(404).json({ msg: 'No signals found for this user', error: true });
+        }
+
+        const userQuery = 'SELECT * FROM Users WHERE id = $1';
+        const userResult = await pool.query(userQuery, [userId]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ msg: 'User not found', error: true });
+        }
+
+        const userData = userResult.rows[0];
+        
+        res.status(200).json({ user: userData, signals: signalData, error: false });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'Internal Server Error', error: true });
+    }
+};
+
+module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals };
