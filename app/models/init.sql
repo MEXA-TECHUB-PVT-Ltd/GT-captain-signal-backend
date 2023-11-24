@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS signals (
     updated_at timestamp DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS signalresult (
-    id SERIAL PRIMARY KEY,
-    signal_id INT NOT NULL,
-    image VARCHAR(255),
-    result VARCHAR(255) ,
-    profit_loss VARCHAR(10)  NOT NULL,
-    FOREIGN KEY (signal_id) REFERENCES signals(signal_id)
-);
+-- CREATE TABLE IF NOT EXISTS signalresult (
+--     id SERIAL PRIMARY KEY,
+--     signal_id INT NOT NULL,
+--     image VARCHAR(255),
+--     result VARCHAR(255) ,
+--     profit_loss VARCHAR(10)  NOT NULL,
+--     FOREIGN KEY (signal_id) REFERENCES signals(signal_id)
+-- );
 
 CREATE TABLE IF NOT EXISTS wishlist (
     id SERIAL PRIMARY KEY,
