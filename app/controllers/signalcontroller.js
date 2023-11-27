@@ -464,14 +464,14 @@ const updateSignalById = (req, res) => {
             signal_status = existingData.signal_status,
             action = existingData.action,
             stop_loss = existingData.stop_loss,
-            trade_result = existingData.trade_result,
+            // trade_result = existingData.trade_result,
             trade_probability = existingData.trade_probability,
-            profit_loss = existingData.profit_loss,
+            // profit_loss = existingData.profit_loss,
             time_frame = existingData.time_frame
         } = req.body;
 
         // Apply similar checks as in the createsignal function
-        if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_result || !trade_probability || !profit_loss || !time_frame) {
+        if (!title || !price || !date || !time || !signal_status || !action || !stop_loss || !trade_probability || !time_frame) {
             return res.status(400).json({ msg: 'Request body cannot be empty', error: true });
         }
 
@@ -485,30 +485,30 @@ const updateSignalById = (req, res) => {
             return res.status(400).json({ msg: 'Invalid time format', error: true });
         }
 
-        if (
-            (trade_result === 'WAITING' && profit_loss !== 'WAITING') ||
-            (trade_result === 'ANNOUNCED' && isNaN(profit_loss))
-        ) {
-            return res.status(400).json({
-                msg:
-                    'If trade_result is WAITING, profit_loss should be WAITING. If trade_result is ANNOUNCED, profit_loss can be any numerical value.',
-                error: true
-            });
-        }
+        // if (
+        //     (trade_result === 'WAITING' && profit_loss !== 'WAITING') ||
+        //     (trade_result === 'ANNOUNCED' && isNaN(profit_loss))
+        // ) {
+        //     return res.status(400).json({
+        //         msg:
+        //             'If trade_result is WAITING, profit_loss should be WAITING. If trade_result is ANNOUNCED, profit_loss can be any numerical value.',
+        //         error: true
+        //     });
+        // }
 
         // Update the signal in the database
         const query = `
         UPDATE signals
         SET title = $1, price = $2, date = $3, time = $4, signal_status = $5, 
-        action = $6, stop_loss = $7, trade_result = $8, trade_probability = $9, 
-        profit_loss = $10, time_frame = $11 /* Add your missing parameter here */
-        WHERE signal_id = $12
+        action = $6, stop_loss = $7, trade_probability = $8, 
+        time_frame = $9 /* Add your missing parameter here */
+        WHERE signal_id = $10
         RETURNING *
     `;
 
         const values = [
-            title, price, date, time, signal_status, action, stop_loss, trade_result,
-            trade_probability, profit_loss, time_frame, signalId
+            title, price, date, time, signal_status, action, stop_loss,
+            trade_probability, time_frame, signalId
         ];
 
         pool.query(query, values, (err, result) => {
@@ -738,30 +738,29 @@ const createSignalResult = async (req, res) => {
 // };
 
 const searchsignalbyname = (req, res) => {
-    const { page = 1, limit = 10, name } = req.query; // Include 'name' in query parameters
+    const { page = 1, limit = 10 } = req.query;
+    const { name } = req.body;
 
-    // Calculate the OFFSET based on the page and limit
     const offset = (page - 1) * limit;
-
-    // Create a dynamic WHERE clause for name search
-    let nameFilter = '';
     let queryParams = [];
+    let nameFilter = '';
 
     if (name) {
-        nameFilter = `WHERE LOWER(s.title) LIKE $${queryParams.length + 1}`;
+        nameFilter = 'LOWER(s.title) LIKE $1';
         queryParams.push(`%${name.toLowerCase()}%`);
     }
 
-    // Query to retrieve signals with optional name search and pagination
     const query = `
         SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
         FROM signals s
         LEFT JOIN take_profit t ON s.signal_id = t.signal_id
-        ${nameFilter}
+        ${nameFilter ? `WHERE ${nameFilter}` : ''}
         ORDER BY s.date DESC
-        OFFSET ${offset}
-        LIMIT ${limit}
+        OFFSET $${queryParams.length + 1}
+        LIMIT $${queryParams.length + 2}
     `;
+
+    queryParams.push(offset, limit);
 
     pool.query(query, queryParams, (err, result) => {
         if (err) {
@@ -778,7 +777,9 @@ const searchsignalbyname = (req, res) => {
         let currentSignal = null;
 
         for (const row of result.rows) {
-            if (!currentSignal || currentSignal.signal_id !== row.signal_id) {
+            let currentSignal = signalsWithTakeProfits.find(signal => signal.signal_id === row.signal_id);
+
+            if (!currentSignal) {
                 currentSignal = {
                     signal_id: row.signal_id,
                     title: row.title,
@@ -788,10 +789,9 @@ const searchsignalbyname = (req, res) => {
                     signal_status: row.signal_status,
                     action: row.action,
                     stop_loss: row.stop_loss,
-                    profit_loss: row.profit_loss,
                     result: row.result,
-                    image: row.image,
-                    trade_result: row.trade_result,
+                    profit_loss: row.profit_loss,
+                    profit_loss: row.image,
                     trade_probability: row.trade_probability,
                     time_frame: row.time_frame,
                     created_at: row.created_at,
@@ -813,10 +813,10 @@ const searchsignalbyname = (req, res) => {
         return res.status(200).json({
             msg: 'Signals fetched successfully',
             status: true,
-            count: signalsWithTakeProfits.length,
+            // count: signalsWithTakeProfits.length,
             data: signalsWithTakeProfits,
         });
     });
 };
 
-module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult, updateSignalResult,searchsignalbyname };
+module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult, updateSignalResult, searchsignalbyname };
