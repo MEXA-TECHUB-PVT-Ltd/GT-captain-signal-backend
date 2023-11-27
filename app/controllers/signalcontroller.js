@@ -737,4 +737,86 @@ const createSignalResult = async (req, res) => {
 //     }
 // };
 
-module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult, updateSignalResult };
+const searchsignalbyname = (req, res) => {
+    const { page = 1, limit = 10, name } = req.query; // Include 'name' in query parameters
+
+    // Calculate the OFFSET based on the page and limit
+    const offset = (page - 1) * limit;
+
+    // Create a dynamic WHERE clause for name search
+    let nameFilter = '';
+    let queryParams = [];
+
+    if (name) {
+        nameFilter = `WHERE LOWER(s.title) LIKE $${queryParams.length + 1}`;
+        queryParams.push(`%${name.toLowerCase()}%`);
+    }
+
+    // Query to retrieve signals with optional name search and pagination
+    const query = `
+        SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
+        FROM signals s
+        LEFT JOIN take_profit t ON s.signal_id = t.signal_id
+        ${nameFilter}
+        ORDER BY s.date DESC
+        OFFSET ${offset}
+        LIMIT ${limit}
+    `;
+
+    pool.query(query, queryParams, (err, result) => {
+        if (err) {
+            console.error('Error fetching signals:', err);
+            return res.status(500).json({ msg: 'Internal server error', status: false });
+        }
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ msg: 'No signals found', status: true, count: 0, data: [] });
+        }
+
+        // Process the results and send the paginated response
+        const signalsWithTakeProfits = [];
+        let currentSignal = null;
+
+        for (const row of result.rows) {
+            if (!currentSignal || currentSignal.signal_id !== row.signal_id) {
+                currentSignal = {
+                    signal_id: row.signal_id,
+                    title: row.title,
+                    price: row.price,
+                    date: row.date,
+                    time: row.time,
+                    signal_status: row.signal_status,
+                    action: row.action,
+                    stop_loss: row.stop_loss,
+                    profit_loss: row.profit_loss,
+                    result: row.result,
+                    image: row.image,
+                    trade_result: row.trade_result,
+                    trade_probability: row.trade_probability,
+                    time_frame: row.time_frame,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    take_profit: [],
+                };
+                signalsWithTakeProfits.push(currentSignal);
+            }
+
+            if (row.open_price && row.take_profit) {
+                currentSignal.take_profit.push({
+                    take_profit_id: row.take_profit_id,
+                    open_price: row.open_price,
+                    take_profit: row.take_profit,
+                });
+            }
+        }
+
+        return res.status(200).json({
+            msg: 'Signals fetched successfully',
+            status: true,
+            count: signalsWithTakeProfits.length,
+            data: signalsWithTakeProfits,
+        });
+    });
+};
+
+module.exports = { createsignal, gettallsignals, getSignalById, updateSignalById, deleteSignalById, updateSignalStatus, getUserSignals, createSignalResult, updateSignalResult,searchsignalbyname };

@@ -267,17 +267,59 @@ const removesignalbyuserID = async (req, res) => {
 const checksaveitem = async (req, res) => {
     const { user_id, signal_id } = req.body;
 
-  try {
-    const checkQuery = 'SELECT * FROM wishlist WHERE user_id = $1 AND signal_id = $2';
-    const checkResult = await pool.query(checkQuery, [user_id, signal_id]);
-    const rows = checkResult.rows;
+    if (!user_id || !signal_id) {
+        return res.status(400).json({ error: true, msg: 'User ID and Signal ID are required' });
+    }
 
-    const save_status = rows.length > 0; // Rows found means both user_id and signal_id exist together
+    const checkExistingQuery = `
+        SELECT * FROM wishlist
+        WHERE user_id = $1 AND signal_id = $2
+    `;
 
-    res.json({ save_status });
-  } catch (error) {
-    res.status(500).json({ error: true, message: 'Internal server error' });
-  }
+    pool.query(checkExistingQuery, [user_id, signal_id], (err, result) => {
+        if (err) {
+            console.error('Error checking signal in wishlist:', err);
+            return res.status(500).json({ save_status: false, error: true });
+        }
+
+        if (result.rows.length > 0) {
+            // Signal exists in user's wishlist
+            const selectSignalQuery = `
+                SELECT * FROM signals WHERE signal_id = $1
+            `;
+
+            const selectUserQuery = `
+                SELECT * FROM users WHERE id = $1
+            `;
+
+            pool.query(selectSignalQuery, [signal_id], (err, signalResult) => {
+                if (err) {
+                    console.error('Error retrieving signal details:', err);
+                    return res.status(500).json({ save_status: false, error: true, message: 'Error retrieving signal details' });
+                }
+
+                if (signalResult.rows.length > 0) {
+                    pool.query(selectUserQuery, [user_id], (err, userResult) => {
+                        if (err) {
+                            console.error('Error retrieving user details:', err);
+                            return res.status(500).json({ save_status: true, error: true, message: 'Error retrieving user details' });
+                        }
+
+                        return res.status(200).json({
+                            save_status: true,
+                            error: false,
+                            signal: signalResult.rows[0],
+                            user: userResult.rows[0]
+                        });
+                    });
+                } else {
+                    return res.status(404).json({ save_status: false, error: false, message: 'Signal not found' });
+                }
+            });
+        } else {
+            return res.status(200).json({ save_status: false, error: false, message: 'Signal not found in user wishlist' });
+        }
+    });
 }
 
 module.exports = {checksaveitem, addToWishlist, getallwishlists, deletewishlists, getSignalsByUserId, removesignalbyuserID };
