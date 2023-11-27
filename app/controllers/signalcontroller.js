@@ -242,73 +242,64 @@ const createsignal = (req, res) => {
 };
 
 const updateSignalResult = (req, res) => {
-    const { signal_id } = req.params; // Assuming you get the signal_id from the request params
-    const { image, profit_loss } = req.body; // Image and profit_loss to be updated
+    const { signal_id } = req.params;
+    const { profit_loss, image } = req.body;
 
-    // Check if either image or profit_loss is provided
-    if (!image && !profit_loss) {
-        return res.status(400).json({ msg: 'Image or profit_loss is required for update', error: true });
+    if (!signal_id || !profit_loss || !image) {
+        return res
+            .status(400)
+            .json({ msg: 'Signal ID, profit_loss, and image are required', error: true });
     }
 
-    // Check if the provided profit_loss is valid
-    if (profit_loss && !['PROFIT', 'LOSS'].includes(profit_loss)) {
-        return res.status(400).json({ msg: 'Profit_loss can only be PROFIT or LOSS', error: true });
+    // Validate profit_loss value
+    if (profit_loss !== 'PROFIT' && profit_loss !== 'LOSS') {
+        return res
+            .status(400)
+            .json({ msg: 'Profit_loss must be either PROFIT or LOSS', error: true });
     }
 
-    // Check if the provided signal_id is valid
-    const findSignalQuery = `
-        SELECT * FROM signals
+    // Check if the signal exists
+    const checkSignalQuery = `
+        SELECT *
+        FROM signals
         WHERE signal_id = $1
     `;
 
-    pool.query(findSignalQuery, [signal_id], (err, signalResult) => {
+    pool.query(checkSignalQuery, [signal_id], (err, checkResult) => {
         if (err) {
-            console.error('Error finding signal:', err);
-            return res.status(500).json({ msg: 'Internal server error', error: true });
+            console.error('Error checking signal:', err);
+            return res
+                .status(500)
+                .json({ msg: 'Internal server error', error: true });
         }
 
-        if (signalResult.rows.length === 0) {
-            return res.status(404).json({ msg: 'Signal not found', error: true });
+        const existingSignal = checkResult.rows[0];
+
+        if (!existingSignal) {
+            return res
+                .status(404)
+                .json({ msg: 'Signal not found', error: true });
         }
 
-        const currentSignal = signalResult.rows[0];
-        let updateFields = [];
-        const updateValues = [];
-
-        if (image) {
-            updateFields.push('image = $1');
-            updateValues.push(image);
-        }
-
-        if (profit_loss) {
-            updateFields.push('profit_loss = $2, result = true');
-            updateValues.push(profit_loss);
-        }
-
-        const updateQuery = `
-            UPDATE signals
-            SET ${updateFields.join(', ')}, updated_at = NOW()
-            WHERE signal_id = $${updateValues.length + 1}
+        // Update the existing signal in the database
+        const updateSignalQuery = `
+            UPDATE signals 
+            SET profit_loss = $1, image = $2, result = true, updated_at = NOW()
+            WHERE signal_id = $3
             RETURNING *
         `;
-        updateValues.push(signal_id);
 
-        pool.query(updateQuery, updateValues, (err, updateResult) => {
+        const signalValues = [profit_loss, image, signal_id];
+
+        pool.query(updateSignalQuery, signalValues, (err, signalResult) => {
             if (err) {
                 console.error('Error updating signal:', err);
-                return res.status(500).json({ msg: 'Internal server error', error: true });
+                return res
+                    .status(500)
+                    .json({ msg: 'Internal server error', error: true });
             }
 
-            const updatedSignal = updateResult.rows[0];
-
-            // Check if profit_loss was updated and set result to true
-            if (profit_loss) {
-                return res.status(200).json({
-                    msg: 'Signal updated successfully with result set to true',
-                    data: updatedSignal,
-                    error: false
-                });
-            }
+            const updatedSignal = signalResult.rows[0];
 
             return res.status(200).json({
                 msg: 'Signal updated successfully',
@@ -325,11 +316,12 @@ const gettallsignals = (req, res) => {
     // Calculate the OFFSET based on the page and limit
     const offset = (page - 1) * limit;
 
-    // Query to retrieve all signals and their associated take profits without signal result details with pagination
+    // Query to retrieve all signals and their associated take profits with pagination
     const query = `
         SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
         FROM signals s
         LEFT JOIN take_profit t ON s.signal_id = t.signal_id
+        ORDER BY s.date DESC
         OFFSET ${offset}
         LIMIT ${limit}
     `;
@@ -337,10 +329,14 @@ const gettallsignals = (req, res) => {
     pool.query(query, (err, result) => {
         if (err) {
             console.error('Error fetching signals:', err);
-            return res.status(500).json({ error: 'Internal server error', status: false });
+            return res.status(500).json({ msg: 'Internal server error', status: false });
         }
 
-        // Process the results and send the response
+        if (result.rows.length === 0) {
+            return res.status(404).json({ msg: 'No signals found', status: true, count: 0, data: [] });
+        }
+
+        // Process the results and send the paginated response
         const signalsWithTakeProfits = [];
         let currentSignal = null;
 
@@ -378,7 +374,7 @@ const gettallsignals = (req, res) => {
         }
 
         return res.status(200).json({
-            msg: 'Signals fetched successfully without signal results',
+            msg: 'Signals fetched successfully',
             status: true,
             count: signalsWithTakeProfits.length,
             data: signalsWithTakeProfits,
