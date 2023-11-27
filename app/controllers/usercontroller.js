@@ -378,9 +378,6 @@ const getalldeletedusers = async (req, res) => {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-        // Convert the date to a PostgreSQL timestamp format
-        const formattedDate = ninetyDaysAgo.toISOString().slice(0, 19).replace("T", " ");
-
         // Check if any users need to be permanently deleted
         const usersToDelete = deletedUsers.filter(user => new Date(user.deleted_at) < ninetyDaysAgo);
 
@@ -403,11 +400,22 @@ const getalldeletedusers = async (req, res) => {
                 data: permanentlyDeletedUsers
             });
         } else {
+            // Calculate days left for each user until 90 days complete
+            const currentDate = new Date();
+            const usersWithDaysLeft = deletedUsers.map(user => {
+                const deletedDate = new Date(user.deleted_at);
+                const daysLeft = Math.ceil((ninetyDaysAgo - deletedDate) / (1000 * 60 * 60 * 24));
+                return {
+                    ...user,
+                    daysLeft: daysLeft > 0 ? daysLeft : 0 // Ensuring non-negative days left
+                };
+            });
+
             return res.status(200).json({
-                msg: "Deleted users fetched",
+                msg: "Deleted users fetched with days left",
                 error: false,
-                count: deletedUsers.length,
-                data: deletedUsers
+                count: usersWithDaysLeft.length,
+                data: usersWithDaysLeft
             });
         }
     } catch (error) {
@@ -417,7 +425,7 @@ const getalldeletedusers = async (req, res) => {
 
 }
 
-const deleteuserpermanently= async (req, res) => {
+const deleteuserpermanently = async (req, res) => {
     try {
         // Extract user ID from the request or any other parameter that identifies the user
         const userId = req.params.id; // Change this based on your route
@@ -438,7 +446,7 @@ const deleteuserpermanently= async (req, res) => {
                 error: true,
                 data: null
             });
-        } 
+        }
 
         return res.status(200).json({
             msg: "User deleted successfully",
@@ -451,4 +459,30 @@ const deleteuserpermanently= async (req, res) => {
     }
 };
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword,updatePassword, deleteuser, getalldeletedusers,deleteuserpermanently };
+const updateuserstatus = async (req, res) => {
+
+    const { userId } = req.params;
+    const { block_status } = req.body;
+
+    console.log('Received user ID:', userId);
+    console.log('Received block status:', block_status);
+
+    try {
+        const updateUserQuery = 'UPDATE Users SET block_status = $1 WHERE id = $2 RETURNING *';
+        const values = [block_status, userId];
+        const result = await pool.query(updateUserQuery, values);
+
+        console.log('Result from query:', result);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({error:true, msg: 'User not found' });
+        }
+
+        res.status(200).json({error:false, msg: 'Block status updated successfully', data: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating block status:', error);
+        res.status(500).json({ msg: 'Error updating block status', error: false });
+    }
+}
+
+module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword, updatePassword, deleteuser, getalldeletedusers, deleteuserpermanently, updateuserstatus };
