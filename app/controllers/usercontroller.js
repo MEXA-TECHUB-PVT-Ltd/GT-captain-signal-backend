@@ -24,7 +24,8 @@ const usersignup = async (req, res) => {
         const emailExists = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
 
         if (emailExists.rows.length > 0) {
-            return res.status(400).json({ error: true, msg: 'Email already exists' });
+            const existingUser = emailExists.rows[0]; // Assuming only one user matches the email
+            return res.status(400).json({ error: true, msg: 'Email already exists', user: existingUser });
         }
 
         // Initialize variables for password and token
