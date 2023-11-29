@@ -117,4 +117,13 @@ CREATE TABLE IF NOT EXISTS notifications (
   content VARCHAR(255),
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
+); 
+
+CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(100),
+    admin_id VARCHAR(100),
+    sender_type VARCHAR(50), -- 'user' or 'admin'
+    message TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

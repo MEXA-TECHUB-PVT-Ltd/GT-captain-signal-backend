@@ -21,41 +21,41 @@ dotenv.config();
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
-    methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'],
+  methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'],
 }));
 
 app.use(express.json())
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        // Check the 'type' field in the request to determine the folder
-        const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
-        const uploadPath = `./uploads/${uploadType}`;
+  destination: (req, file, cb) => {
+    // Check the 'type' field in the request to determine the folder
+    const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
+    const uploadPath = `./uploads/${uploadType}`;
 
-        // Check if the directory exists, if not, create it
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
-        }
+    // Check if the directory exists, if not, create it
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
 
-        cb(null, uploadPath);
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}_${file.originalname}`);
-    },
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}_${file.originalname}`);
+  },
 });
 
 const upload = multer({ storage });
 
 // POST endpoint for uploading images
 app.post('/upload', upload.single('image'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: true, msg: 'No file uploaded.' });
-    }
+  if (!req.file) {
+    return res.status(400).json({ error: true, msg: 'No file uploaded.' });
+  }
 
-    const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
-    const imageUrl = `uploads/${uploadType}/${req.file.filename}`;
+  const uploadType = req.body.type === 'broker' ? 'broker' : 'profile_image';
+  const imageUrl = `uploads/${uploadType}/${req.file.filename}`;
 
-    res.status(200).json({ error: false, imageUrl: imageUrl });
+  res.status(200).json({ error: false, imageUrl: imageUrl });
 });
 
 // Serve uploaded images statically
@@ -73,53 +73,125 @@ app.use("/wishlist", require("./app/routes/wishlist/wishlistroutes"))
 app.use("/notifications", require("./app/routes/notification/notificationroutes"))
 
 app.get('/', (req, res) => {
-    res.json({ message: 'GT Caption Signals !' });
+  res.json({ message: 'GT Caption Signals !' });
 });
 
 const server = http.createServer(app);
 
 const io = socketIo(server, {
-    cors: {
-        origin: '*',
-        credentials: true,
-    },
+  cors: {
+    origin: '*',
+    credentials: true,
+  },
 });
 
-const connectedUsers = {};
-// global.onlineUsers = new Map();
-io.on("connection", (socket) => {
-    //   global.chatSocket = socket;
-    console.log("Socket Connected ===>" + socket.id);
+// const connectedUsers = {};
+// // global.onlineUsers = new Map();
+// io.on("connection", (socket) => {
+//     //   global.chatSocket = socket;
+//     console.log("Socket Connected ===>" + socket.id);
 
-    socket.on('login', (userInfo) => {
-        connectedUsers[userInfo] = socket.id;
-        connectedUsers[userInfo.userId] = { socketId: socket.id, username: userInfo.username };
-        console.log(`User ${userInfo.userId} connected`);
-    });
+//     socket.on('login', (userInfo) => {
+//         connectedUsers[userInfo] = socket.id;
+//         connectedUsers[userInfo.userId] = { socketId: socket.id, username: userInfo.username };
+//         console.log(`User ${userInfo.userId} connected`);
+//     });
 
-    socket.on('privateMessage', ({ targetUserId, message }) => {
-        const targetSocketId = connectedUsers[targetUserId]?.socketId;
-        console.log("userID", targetUserId);
-        if (targetSocketId) {
-            // Send the private message to the target user
-            io.to(targetSocketId).emit('privateMessage', { senderId: targetUserId, message });
-        } else {
-            // Handle the case when the target user is not online
-            console.log(`User ${targetUserId} is not online`);
-        }
-    });
+//     socket.on('privateMessage', ({ targetUserId, message }) => {
+//         const targetSocketId = connectedUsers[targetUserId]?.socketId;
+//         console.log("userID", targetUserId);
+//         if (targetSocketId) {
+//             // Send the private message to the target user
+//             io.to(targetSocketId).emit('privateMessage', { senderId: targetUserId, message });
+//         } else {
+//             // Handle the case when the target user is not online
+//             console.log(`User ${targetUserId} is not online`);
+//         }
+//     });
 
-    socket.on('disconnect', () => {
-        // Remove the disconnected user from the connectedUsers object
-        const userId = Object.keys(connectedUsers).find(key => connectedUsers[key] === socket.id);
-        if (userId) {
-            delete connectedUsers[userId];
-            console.log(`User ${userId} disconnected`);
-        }
-    });
+//     socket.on('disconnect', () => {
+//         // Remove the disconnected user from the connectedUsers object
+//         const userId = Object.keys(connectedUsers).find(key => connectedUsers[key] === socket.id);
+//         if (userId) {
+//             delete connectedUsers[userId];
+//             console.log(`User ${userId} disconnected`);
+//         }
+//     });
 
+// }); 
+
+const users = {};
+
+let adminSocket = null;
+
+const saveMessageToDB = async (userId, adminId, message, senderType) => {
+  try {
+    const query = 'INSERT INTO messages (user_id, admin_id, sender_type, message) VALUES ($1, $2, $3, $4)';
+    await pool.query(query, [userId, adminId, senderType, message]);
+    console.log('Message saved to the database.');
+  } catch (error) {
+    console.error('Error saving message to the database:', error);
+  }
+};
+
+io.on('connection', async (socket) => {
+  // When a new user connects
+  socket.on('user_connect', (userId) => {
+    users[userId] = socket;
+    console.log(`User ${userId} connected.`);
+  });
+
+  // When an admin connects
+  socket.on('admin_connect', () => {
+    if (adminSocket) {
+      adminSocket.disconnect(); // Disconnect existing admin
+    }
+    adminSocket = socket;
+    console.log('Admin connected.');
+  });
+
+  socket.on('user_message', async (data) => {
+    // Extract user ID and message from data
+    // const { userId, message } = data;
+    if (adminSocket) {
+      adminSocket.emit('message_from_user', data);
+      // Save message with user ID, null admin ID, 'user' sender type
+      const userId = 1;
+      console.log(userId, null, data, 'user');
+      // await saveMessageToDB(userId, null, message, 'user');
+    } else {
+      console.log('Admin is not connected.');
+    }
+  });
+
+  // When admin sends a message to a specific user
+  socket.on('admin_message', async (data) => {
+    const { userId, message } = data;
+    if (users[userId]) {
+      users[userId].emit('message_from_admin', message);
+      // Save message with null user ID, admin ID, 'admin' sender type
+      console.log(null, userId, message, 'admin');
+      // await saveMessageToDB(null, userId, message, 'admin');
+    } else {
+      console.log(`User ${userId} is not connected.`);
+    }
+  });
+
+  // Handle disconnecons
+  socket.on('disconnectit', () => {
+    if (socket === adminSocket) {
+      adminSocket = null;
+      console.log('Admin disconnected.');
+    } else {
+      const userId = Object.keys(users).find((key) => users[key] === socket);
+      if (userId) {
+        delete users[userId];
+        console.log(`User ${userId} disconnected.`);
+      }
+    }
+  });
 });
 
 server.listen(port, () => {
-    console.log(`Server is running on port ${port}.`);
+  console.log(`Server is running on port ${port}.`);
 }); 
