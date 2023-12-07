@@ -130,6 +130,27 @@ const FCM = require('fcm-node');
 //     });
 // };
 
+const getAllUserDeviceIDs = (callback) => {
+    const userDeviceIDsQuery = `
+        SELECT id, device_id
+        FROM Users
+        WHERE deleted_status = false AND deleted_at IS NULL
+    `;
+
+    pool.query(userDeviceIDsQuery, (err, result) => {
+        if (err) {
+            console.error('Error fetching user device IDs:', err);
+            callback(err, null);
+        } else {
+            const userDeviceIDs = result.rows.map(user => ({
+                id: user.id,
+                device_id: user.device_id
+            }));
+            callback(null, userDeviceIDs);
+        }
+    });
+};
+
 const createsignal = (req, res) => {
     const {
         title,
@@ -197,40 +218,96 @@ const createsignal = (req, res) => {
 
     pool.query(insertSignalQuery, signalValues, (err, signalResult) => {
         if (err) {
+            if (err.code === '23505' && err.constraint === 'signals_title_key') {
+                return res.status(400).json({
+                    msg: 'Title already exists, please choose a different title',
+                    error: true
+                });
+            }
             console.error('Error creating signal:', err);
-            return res
-                .status(500)
-                .json({ msg: 'Internal server error', error: true });
+            return res.status(500).json({ msg: 'Internal server error', error: true });
         }
 
         const newSignal = signalResult.rows[0];
         const emptyTakeProfit = [];
 
-        // Sending notification after successfully creating the signal
-        const serverKey =
-            'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
-        const fcm = new FCM(serverKey);
+        // getAllUserDeviceIDs((err, userDeviceIDs) => {
+        //     if (err) {
+        //         // Handle error
+        //         console.error('Error:', err);
+        //     } else {
+        //         // Proceed with the user device IDs
+        //         console.log('User Device IDs:', userDeviceIDs.map(user => user.device_id))
+        //         // Call createsignal function here or wherever required with userDeviceIDs
+        //     }
+        // });
 
-        const message = {
-            notification: {
-                title: 'Signal',
-                body: 'New Signal Created'
-            },
-            to:
-                'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
-        };
-
-        fcm.send(message, function (err, response) {
+        // console.log(userDeviceIDs.map(user => user.device_ids).flat());
+        getAllUserDeviceIDs((err, userDeviceIDs) => {
             if (err) {
-                console.error('Error sending message', err);
-            } else {
-                console.log(
-                    'Successfully sent message',
-                    response,
-                    message.notification
-                );
+                // Handle error
+                console.error('Error fetching user device IDs:', err);
+                return res.status(500).json({ msg: 'Error fetching user device IDs', error: true });
             }
+
+            // Extract device IDs from userDeviceIDs
+            const deviceTokens = userDeviceIDs.map(user => user.device_id);
+            console.log(deviceTokens);
+
+            // Sending notification to all devices
+            const serverKey = 'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
+            const fcm = new FCM(serverKey);
+
+            const message = {
+                notification: {
+                    title: 'Signal',
+                    body: 'New Signal Created'
+                },
+                registration_ids: deviceTokens
+                //     "eXA-ZyQVTH6_m8-pNUAP3S:APA91bHr8G6Dkt6MICR74OyoMHMJTNXNsLOvMPH66D2y3B7tZN4rGIoQidK4iamPeMzq3gKWJmPKlE9kYXIsqNeo9QgyLJ7Ju3OZ3Y2s43tLZpCoB_EXAackzoxWl0NUO9nYtofXjcYa",
+                // "e-Sec3jFQA6iZWTTNKhTXv:APA91bFDw1tKRlBlEtynrIgGf9QemDkS8fTA4Nad7yc0mgQkpIP8zfFXgN3HnIEi8ngggxoW86Ajeq3fU6xmLXa_HOgfTcGCZW3AriutVcvW7T3QxPsdbHQAbCZ2py8aK50EWwJo2gWW",
+                // "e-Sec3jFQA6iZWTTNKhTXv:APA91bFDw1tKRlBlEtynrIgGf9QemDkS8fTA4Nad7yc0mgQkpIP8zfFXgN3HnIEi8ngggxoW86Ajeq3fU6xmLXa_HOgfTcGCZW3AriutVcvW7T3QxPsdbHQAbCZ2py8aK50EWwJo2gWW"
+
+            };
+
+            fcm.send(message, function (err, response) {
+                if (err) {
+                    console.error('Error sending message', err);
+                } else {
+                    console.log('Successfully sent message', response, message.notification);
+                }
+            });
         });
+
+        // Extract device IDs from userDeviceIDs
+        // const deviceTokens = userDeviceIDs.map(user => user.device_id);
+        // console.log(deviceTokens);
+
+        // const serverKey =
+        //     'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
+        // // 'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
+        // const fcm = new FCM(serverKey);
+
+        // const message = {
+        //     notification: {
+        //         title: 'Signal',
+        //         body: 'New Signal Created'
+        //     },
+        //     to: 'eXA-ZyQVTH6_m8-pNUAP3S:APA91bHr8G6Dkt6MICR74OyoMHMJTNXNsLOvMPH66D2y3B7tZN4rGIoQidK4iamPeMzq3gKWJmPKlE9kYXIsqNeo9QgyLJ7Ju3OZ3Y2s43tLZpCoB_EXAackzoxWl0NUO9nYtofXjcYa'
+        //     // 'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
+        // };
+
+        // fcm.send(message, function (err, response) {
+        //     if (err) {
+        //         console.error('Error sending message', err);
+        //     } else {
+        //         console.log(
+        //             'Successfully sent message',
+        //             response,
+        //             message.notification
+        //         );
+        //     }
+        // });
 
         return res.status(201).json({
             msg: 'Signal created successfully',
@@ -311,20 +388,19 @@ const updateSignalResult = (req, res) => {
 }
 
 const gettallsignals = (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
 
-    // Calculate the OFFSET based on the page and limit
-    const offset = (page - 1) * limit;
-
-    // Query to retrieve all signals and their associated take profits with pagination
-    const query = `
+    const { limit, page } = req.query;
+    let query = `
         SELECT s.*, t.take_profit_id, t.open_price, t.take_profit
         FROM signals s
         LEFT JOIN take_profit t ON s.signal_id = t.signal_id
-        ORDER BY s.date DESC
-        OFFSET ${offset}
-        LIMIT ${limit}
+        ORDER BY s.created_at DESC
     `;
+
+    if (limit && page) {
+        const offset = (page - 1) * limit;
+        query += ` LIMIT ${limit} OFFSET ${offset}`;
+    }
 
     pool.query(query, (err, result) => {
         if (err) {
@@ -336,7 +412,6 @@ const gettallsignals = (req, res) => {
             return res.status(404).json({ msg: 'No signals found', status: true, count: 0, data: [] });
         }
 
-        // Process the results and send the paginated response
         const signalsWithTakeProfits = [];
         let currentSignal = null;
 

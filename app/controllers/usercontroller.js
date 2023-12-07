@@ -108,24 +108,19 @@ const usersignin = async (req, res) => {
     }
 };
 
-const getallusers = async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
+const getallusers = async (req, res) => { 
 
-    // Calculate the OFFSET based on the page and limit
-    const offset = (page - 1) * limit;
-
+    const { limit, page } = req.query;
     let query = `
         SELECT *
         FROM Users
         WHERE deleted_status = false AND deleted_at IS NULL
+        ORDER BY created_at DESC
     `;
 
-    // Check if pagination parameters are provided
-    if (page && limit) {
-        query += `
-            OFFSET ${offset}
-            LIMIT ${limit}
-        `;
+    if (limit && page) {
+        const offset = (page - 1) * limit;
+        query += ` LIMIT ${limit} OFFSET ${offset}`;
     }
 
     pool.query(query, (err, result) => {
@@ -142,6 +137,7 @@ const getallusers = async (req, res) => {
             data: users
         });
     });
+    
 }
 
 const getalluserbyID = async (req, res) => {
@@ -368,7 +364,8 @@ const getalldeletedusers = async (req, res) => {
         const fetchQuery = `
             SELECT *
             FROM Users
-            WHERE deleted_status = true AND deleted_at IS NOT NULL;
+            WHERE deleted_status = true AND deleted_at IS NOT NULL
+            ORDER BY created_at DESC
         `;
 
         const fetchResult = await pool.query(fetchQuery);
@@ -405,15 +402,19 @@ const getalldeletedusers = async (req, res) => {
             const currentDate = new Date();
             const usersWithDaysLeft = deletedUsers.map(user => {
                 const deletedDate = new Date(user.deleted_at);
-                const daysLeft = Math.ceil((ninetyDaysAgo - deletedDate) / (1000 * 60 * 60 * 24));
+                const timeDifference = currentDate.getTime() - deletedDate.getTime(); // Difference in milliseconds
+                const daysPassed = Math.ceil(timeDifference / (1000 * 60 * 60 * 24)); // Convert milliseconds to days
+
+                let daysLeft = 90 - daysPassed;
+                daysLeft = daysLeft > 0 ? daysLeft : 0; // Ensuring non-negative days left
                 return {
                     ...user,
-                    daysLeft: daysLeft > 0 ? daysLeft : 0 // Ensuring non-negative days left
+                    daysLeft: daysLeft
                 };
             });
 
             return res.status(200).json({
-                msg: "Deleted users fetched with days left",
+                msg: "Deleted users fetched with days left until 90 days complete",
                 error: false,
                 count: usersWithDaysLeft.length,
                 data: usersWithDaysLeft
