@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS Admin (
 
 CREATE TABLE IF NOT EXISTS signals (
     signal_id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(255) UNIQUE,
     price DECIMAL NOT NULL,
     date DATE NOT NULL,
     time TIME NOT NULL,
