@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS Users (
   signup_type VARCHAR(255), 
   image VARCHAR(255),
   device_id VARCHAR(255),
+  verificationCode VARCHAR(255),
   block_status BOOLEAN DEFAULT false, 
   deleted_status BOOLEAN DEFAULT false, 
   deleted_at TIMESTAMP, 
