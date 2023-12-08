@@ -11,7 +11,19 @@ function isValidEmail(email) {
 
 const allowedSignupTypes = ["email", "google", "facebook"];
 
+const emailverification = 'https://res.cloudinary.com/dxfdrtxi3/image/upload/v1702013412/emailverification_sfknfv.png;'
+const imagePath = 'https://res.cloudinary.com/dxfdrtxi3/image/upload/v1702009226/gtsignalmain_ijtvdw.png';
+const logo = "https://res.cloudinary.com/dxfdrtxi3/image/upload/v1702009135/logo_apxqiz.png";
+const twitter = "https://res.cloudinary.com/dxfdrtxi3/image/upload/v1701865005/twitter_fnifjv.png"
+const fb = "https://res.cloudinary.com/dxfdrtxi3/image/upload/v1701865043/fb_mnkz7w.png"
+const insta = " https://res.cloudinary.com/dxfdrtxi3/image/upload/v1701865074/insta_lnp7x8.png"
+
+function generateVerificationCode() {
+    return Math.floor(1000 + Math.random() * 9000);
+}
+
 const usersignup = async (req, res) => {
+
     const { name, email, password, signup_type, token, device_id } = req.body;
 
     // Validate email format
@@ -19,46 +31,477 @@ const usersignup = async (req, res) => {
         return res.status(400).json({ error: true, msg: 'Invalid email format' });
     }
 
-    // Check if the email or device_id already exists in the database
     try {
+        // Check if the email already exists in the database
         const emailExists = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
-
         if (emailExists.rows.length > 0) {
             const existingUser = emailExists.rows[0]; // Assuming only one user matches the email
             return res.status(400).json({ error: true, msg: 'Email already exists', user: existingUser });
         }
 
-        // Initialize variables for password and token
-        let hashedPassword = null;
-        let tokenValue = null;
-
-        // Check signup_type and handle password and token accordingly
-        if (signup_type === 'email') {
-            // Validate password length
-            if (password.length < 6) {
-                return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
-            }
-
-            // Hash the password before storing it in the database
-            hashedPassword = await bcrypt.hash(password, 10); // You can adjust the number of rounds for security
-        } else if (signup_type === 'google' || signup_type === 'facebook') {
-            // For Google or Facebook signups, set password to null and use the provided token
-            hashedPassword = null;
-            tokenValue = token; // Use the provided token for Google or Facebook signups
+        // Validate password length
+        if (signup_type === 'email' && password.length < 6) {
+            return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
         }
 
-        // Insert the user into the database
-        const result = await pool.query(
-            'INSERT INTO Users (name, email, password, signup_type, token, device_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [name, email, hashedPassword, signup_type, tokenValue, device_id]
-        );
+        // Generate random 4-digit code
+        const verificationCode = generateVerificationCode();
 
-        const userId = result.rows[0];
-        res.status(201).json({ error: false, msg: 'User signed up successfully', data: userId });
+        // Hash the password before storing it in the database (if signup_type is 'email')
+        const hashedPassword = signup_type === 'email' ? await bcrypt.hash(password, 10) : null;
+
+        const mailOptionsVerification = {
+            from: 'mahreentassawar@gmail.com',
+            to: email,
+            subject: 'Verification Code for Signup',
+            // text: `Your OTP for password reset is: ${otp}`,
+            html: `
+            <html>
+            <head>
+                <style>
+                    /* Add your CSS styles for the email template here */
+                    body {
+                        font-family: Arial, sans-serif;
+                        background-color: #f4f4f4;
+                        color: #333;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .header {
+                        background-color: #E3B12F; /* Yellow background color */
+                        padding: 10px;
+                        text-align: center;
+                        border-radius: 5px;
+                    }
+                    .logo-container {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        align-content:center;
+                        margin-bottom: 10px;
+                    }
+                    .logo { 
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 100px;
+                    }
+                    .flirt-waves {
+                        font-size: 24px;
+                        color: black;
+                        margin: 0; /* Remove default margins */
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #fff;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                    }
+                    .centered-image {
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 20px; /* Adjust size as needed */
+                    }
+                    .otp {
+                        background-color: #E3B12F; /* Yellow background color */
+                        padding: 5px;
+                        width: 400vh;
+                        font-size: 20px;
+                        text-align: center;
+                        margin-top: 40px;
+                        margin-bottom: 20px;
+                        letter-spacing: 5px;
+                        border-radius: 50px;
+                        color: white;
+                    }
+                    /* Add more styles as needed */
+                </style>
+            </head>
+            <body>
+            <img class="logo" src="${logo}" alt="Logo">
+                </div>
+                <div class="container">
+                    <!-- Second Image -->
+                    <img src="${emailverification}" alt="Embedded Image" style="width: 90px;">
+                    <!-- Rest of your email content -->
+                    <p style="color: #DC9A08; font-size:20px; font-weight:bold; margin: 15px 0;">
+                    Verify your email address
+                    </p>
+                         
+                    <p style="color: #606060; margin: 15px 0;">
+                    You’ve entered ${email} as the email for your account. Please enter this code in the designated field on our platform. If you did not initiate this request, please disregard this email.
+                    </p>
+
+                    <strong class="otp">${verificationCode}</strong>       
+
+                    <p style="color: #606060; margin: 10px 0;">
+                    If you encounter any issues or have questions, feel free to contact our support team at [GTsignalsupport@email.com].
+                    </p>
+
+                    <div class="header"> 
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:20px;">
+                        Get In Touch!
+                    </p>
+                    <a href="https://www.facebook.com/link-to-facebook" target="_blank">
+                        <img src="${fb}" alt="Facebook" class="centered-image">
+                    </a>
+                    <a href="https://www.instagram.com/link-to-instagram" target="_blank">
+                        <img src="${insta}" alt="Instagram" class="centered-image">
+                    </a>
+                    <a href="https://www.twitter.com/link-to-twitter" target="_blank">
+                        <img src="${twitter}" alt="Twitter" class="centered-image">  
+                    </a>
+            
+                    <!-- Add a copyright symbol -->
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:13px;">
+                        &#169; 2023 GT-Signal. All right reserved
+                    </p>
+                </div>
+            </body>
+            </html>
+        `,
+        };
+
+        await transporter.sendMail(mailOptionsVerification);
+
+        // Store the verification code and hashed password (if applicable) in the database for the user
+        const insertVerificationQuery = `
+            INSERT INTO Users (name, email, password, signup_type, token, device_id, verificationCode)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
+           await pool.query(insertVerificationQuery, [name, email, hashedPassword, signup_type, token, device_id, verificationCode]);
+ 
+           const userId = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+
+        res.status(200).json({ error: false, msg: 'Verification code sent successfully', data: userId.rows  });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
     }
+
+    // const { name, email, password, signup_type, token, device_id } = req.body;
+
+    // // Validate email format
+    // if (!isValidEmail(email)) {
+    //     return res.status(400).json({ error: true, msg: 'Invalid email format' });
+    // }
+
+    // // Check if the email or device_id already exists in the database
+    // try {
+    //     const emailExists = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+
+    //     if (emailExists.rows.length > 0) {
+    //         const existingUser = emailExists.rows[0]; // Assuming only one user matches the email
+    //         return res.status(400).json({ error: true, msg: 'Email already exists', user: existingUser });
+    //     }
+
+    //     // Initialize variables for password and token
+    //     let hashedPassword = null;
+    //     let tokenValue = null;
+
+    //     // Check signup_type and handle password and token accordingly
+    //     if (signup_type === 'email') {
+    //         // Validate password length
+    //         if (password.length < 6) {
+    //             return res.status(400).json({ error: true, msg: 'Password must be at least 6 characters long' });
+    //         }
+
+    //         // Hash the password before storing it in the database
+    //         hashedPassword = await bcrypt.hash(password, 10); // You can adjust the number of rounds for security
+    //     } else if (signup_type === 'google' || signup_type === 'facebook') {
+    //         // For Google or Facebook signups, set password to null and use the provided token
+    //         hashedPassword = null;
+    //         tokenValue = token; // Use the provided token for Google or Facebook signups
+    //     }
+
+    //     // Insert the user into the database
+    //     const result = await pool.query(
+    //         'INSERT INTO Users (name, email, password, signup_type, token, device_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    //         [name, email, hashedPassword, signup_type, tokenValue, device_id]
+    //     );
+
+    //     const mailOptions = {
+    //         from: 'mahreentassawar@gmail.com',
+    //         to: email,
+    //         subject: 'Registration Successfull',
+    //         // text: `Your OTP for password reset is: ${otp}`,
+    //         html: `
+    //         <html>
+    //         <head>
+    //             <style>
+    //                 /* Add your CSS styles for the email template here */
+    //                 body {
+    //                     font-family: Arial, sans-serif;
+    //                     background-color: #f4f4f4;
+    //                     color: #333;
+    //                     margin: 0;
+    //                     padding: 0;
+    //                 }
+    //                 .header {
+    //                     background-color: #E3B12F; /* Yellow background color */
+    //                     padding: 10px;
+    //                     text-align: center;
+    //                     border-radius: 5px;
+    //                 }
+    //                 .logo-container {
+    //                     display: flex;
+    //                     justify-content: center;
+    //                     align-items: center;
+    //                     align-content:center;
+    //                     margin-bottom: 10px;
+    //                 }
+    //                 .logo {
+    //                     margin-top:-40vh;
+    //                     display: inline-block;
+    //                     margin: 0 5px; /* Adjust spacing between icons */
+    //                     max-width: 100px; /* Adjust size as needed */
+    //                 }
+    //                 .flirt-waves {
+    //                     font-size: 24px;
+    //                     color: black;
+    //                     margin: 0; /* Remove default margins */
+    //                 }
+    //                 .container {
+    //                     max-width: 700px;
+    //                     margin: 0 auto;
+    //                     padding: 20px;
+    //                     background-color: #fff;
+    //                     border-radius: 8px;
+    //                     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    //                     text-align: center;
+    //                 }
+    //                 .centered-image {
+    //                     display: inline-block;
+    //                     margin: 0 5px; /* Adjust spacing between icons */
+    //                     max-width: 20px; /* Adjust size as needed */
+    //                 }
+    //                 .otp {
+    //                     background-color: #FFEEB6; /* Yellow background color */
+    //                     padding: 10px;
+    //                     width: 300px;
+    //                     font-size: 24px;
+    //                     text-align: center;
+    //                     margin-top: 40px;
+    //                     margin-bottom: 20px;
+    //                     letter-spacing: 5px;
+    //                     border-radius: 50px;
+    //                     color: #F5BF03;
+    //                 }
+    //                 /* Add more styles as needed */
+    //             </style>
+    //         </head>
+    //         <body>
+
+    //             <div class="container">
+
+    //             <img class="logo" src="${logo}" alt="Logo"> 
+
+    //                 <!-- Second Image -->
+    //                 <img src="${imagePath}" alt="Embedded Image" style="width: 100%;margin-top:20px; height:100px">
+    //                 <!-- Rest of your email content -->
+    //                 <p style="color: black; text-align: left; font-weight:600px; margin: 15px 0;">Hey,</p>
+    //                 <p style="color: #606060; text-align: left; margin: 15px 0;">
+    //                 Welcome to GT-Signals – the ultimate platform for seamless and intelligent trading. We're thrilled to have you on board, and we can't wait for you to experience the power of smart investing right at your fingertips.</p>
+
+    //                 <p style="color: #606060; text-align: left; margin: 15px 0;">
+    //                 To get started, simply log in to your account using the credentials you provided during registration. If you have any questions or need assistance, feel free to reach out to our support team at  <span style="color: #E3B12F;" >GT-Signal@email.com</span>
+    //                 </p>
+
+    //                 <p style="color: #606060; text-align: left; margin: 15px 0;">
+    //                 Thank you for choosing GT-Signals. We're excited to be part of your trading journey, and we look forward to helping you achieve your financial goals.
+    //                 Happy trading!
+    //                 </p>
+
+    //                 <div class="header"> 
+    //                 <p style="color: black; text-align: center; font-weight:boldest; font-size:20px;">
+    //                     Get In Touch!
+    //                 </p>
+    //                 <a href="https://www.facebook.com/link-to-facebook" target="_blank">
+    //                     <img src="${fb}" alt="Facebook" class="centered-image">
+    //                 </a>
+    //                 <a href="https://www.instagram.com/link-to-instagram" target="_blank">
+    //                     <img src="${insta}" alt="Instagram" class="centered-image">
+    //                 </a>
+    //                 <a href="https://www.twitter.com/link-to-twitter" target="_blank">
+    //                     <img src="${twitter}" alt="Twitter" class="centered-image">  
+    //                 </a>
+
+    //                 <!-- Add a copyright symbol -->
+    //                 <p style="color: black; text-align: center; font-weight:boldest; font-size:13px;">
+    //                     &#169; 2023 GT-Signal. All right reserved
+    //                 </p>
+    //             </div>
+
+    //             </div>
+    //         </body>
+    //         </html>
+    //     `,
+    //     };
+
+    //     await transporter.sendMail(mailOptions);
+
+    //     const userId = result.rows[0];
+    //     res.status(201).json({ error: false, msg: 'User signed up successfully', data: userId });
+    // } catch (error) {
+    //     console.error(error);
+    //     res.status(500).json({ error: true, msg: 'Internal server error' });
+    // }
+};
+
+const verifySignup = async (req, res) => {
+    const { email, verificationCode } = req.body;
+
+    try {
+        // Retrieve the stored verification code and user information associated with the email from the Users table
+        const query = 'SELECT * FROM Users WHERE email = $1';
+        const { rows } = await pool.query(query, [email]);
+
+        // Check if the email exists in the database
+        if (rows.length === 0) {
+            return res.status(404).json({ error: true, msg: 'Email not found' });
+        }
+
+        const storedVerificationCode = rows[0].verificationcode; // Ensure column name matches your schema
+
+        // Compare the entered code with the stored code
+        if (verificationCode !== storedVerificationCode) {
+            return res.status(400).json({ error: true, msg: 'Incorrect verification code' });
+        }
+
+        // Update verification status to indicate it's completed
+        const updateQuery = 'UPDATE Users SET verificationCode = null WHERE email = $1';
+        await pool.query(updateQuery, [email]);
+
+        const mailOptions = {
+            from: 'mahreentassawar@gmail.com',
+            to: email,
+            subject: 'Registration Successfull',
+            // text: `Your OTP for password reset is: ${otp}`,
+            html: `
+            <html>
+            <head>
+                <style>
+                    /* Add your CSS styles for the email template here */
+                    body {
+                        font-family: Arial, sans-serif;
+                        background-color: #f4f4f4;
+                        color: #333;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .header {
+                        background-color: #E3B12F; /* Yellow background color */
+                        padding: 10px;
+                        text-align: center;
+                        border-radius: 5px;
+                    }
+                    .logo-container {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        align-content:center;
+                        margin-bottom: 10px;
+                    }
+                    .logo {
+                        margin-top:-40vh;
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 100px; /* Adjust size as needed */
+                    }
+                    .flirt-waves {
+                        font-size: 24px;
+                        color: black;
+                        margin: 0; /* Remove default margins */
+                    }
+                    .container {
+                        max-width: 700px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #fff;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                    }
+                    .centered-image {
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 20px; /* Adjust size as needed */
+                    }
+                    .otp {
+                        background-color: #FFEEB6; /* Yellow background color */
+                        padding: 10px;
+                        width: 300px;
+                        font-size: 24px;
+                        text-align: center;
+                        margin-top: 40px;
+                        margin-bottom: 20px;
+                        letter-spacing: 5px;
+                        border-radius: 50px;
+                        color: #F5BF03;
+                    }
+                    /* Add more styles as needed */
+                </style>
+            </head>
+            <body>
+
+                <div class="container">
+
+                <img class="logo" src="${logo}" alt="Logo"> 
+
+                    <!-- Second Image -->
+                    <img src="${imagePath}" alt="Embedded Image" style="width: 100%;margin-top:20px; height:100px">
+                    <!-- Rest of your email content -->
+                    <p style="color: black; text-align: left; font-weight:600px; margin: 15px 0;">Hey,</p>
+                    <p style="color: #606060; text-align: left; margin: 15px 0;">
+                    Welcome to GT-Signals – the ultimate platform for seamless and intelligent trading. We're thrilled to have you on board, and we can't wait for you to experience the power of smart investing right at your fingertips.</p>
+
+                    <p style="color: #606060; text-align: left; margin: 15px 0;">
+                    To get started, simply log in to your account using the credentials you provided during registration. If you have any questions or need assistance, feel free to reach out to our support team at  <span style="color: #E3B12F;" >GT-Signal@email.com</span>
+                    </p>
+
+                    <p style="color: #606060; text-align: left; margin: 15px 0;">
+                    Thank you for choosing GT-Signals. We're excited to be part of your trading journey, and we look forward to helping you achieve your financial goals.
+                    Happy trading!
+                    </p>
+
+                    <div class="header"> 
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:20px;">
+                        Get In Touch!
+                    </p>
+                    <a href="https://www.facebook.com/link-to-facebook" target="_blank">
+                        <img src="${fb}" alt="Facebook" class="centered-image">
+                    </a>
+                    <a href="https://www.instagram.com/link-to-instagram" target="_blank">
+                        <img src="${insta}" alt="Instagram" class="centered-image">
+                    </a>
+                    <a href="https://www.twitter.com/link-to-twitter" target="_blank">
+                        <img src="${twitter}" alt="Twitter" class="centered-image">  
+                    </a>
+
+                    <!-- Add a copyright symbol -->
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:13px;">
+                        &#169; 2023 GT-Signal. All right reserved
+                    </p>
+                </div>
+
+                </div>
+            </body>
+            </html>
+        `,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        // Respond to the user indicating successful verification and include the user record
+        const userRecord = rows[0]; // Contains the user information
+        res.status(200).json({ error: false, msg: 'Email verified successfully', user: userRecord });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: true, msg: 'Internal server error' });
+    }
+
 };
 
 const usersignin = async (req, res) => {
@@ -108,7 +551,7 @@ const usersignin = async (req, res) => {
     }
 };
 
-const getallusers = async (req, res) => { 
+const getallusers = async (req, res) => {
 
     const { limit, page } = req.query;
     let query = `
@@ -137,7 +580,7 @@ const getallusers = async (req, res) => {
             data: users
         });
     });
-    
+
 }
 
 const getalluserbyID = async (req, res) => {
@@ -241,11 +684,125 @@ const forgetpassword = async (req, res) => {
         const otp = getRandomDigits(4);
 
         // Create an email message with the OTP
+        // const mailOptions = {
+        //     from: 'mahreentassawar@gmail.com',
+        //     to: email,
+        //     subject: 'Password Reset OTP',
+        //     text: `Your OTP for password reset is: ${otp}`,
+        // };
+
         const mailOptions = {
             from: 'mahreentassawar@gmail.com',
             to: email,
             subject: 'Password Reset OTP',
-            text: `Your OTP for password reset is: ${otp}`,
+            // text: `Your OTP for password reset is: ${otp}`,
+            html: `
+            <html>
+            <head>
+                <style>
+                    /* Add your CSS styles for the email template here */
+                    body {
+                        font-family: Arial, sans-serif;
+                        background-color: #f4f4f4;
+                        color: #333;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .header {
+                        background-color: #E3B12F; /* Yellow background color */
+                        padding: 10px;
+                        text-align: center;
+                        border-radius: 5px;
+                    }
+                    .logo-container {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        align-content:center;
+                        margin-bottom: 10px;
+                    }
+                    .logo { 
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 100px;
+                    }
+                    .flirt-waves {
+                        font-size: 24px;
+                        color: black;
+                        margin: 0; /* Remove default margins */
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #fff;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                    }
+                    .centered-image {
+                        display: inline-block;
+                        margin: 0 5px; /* Adjust spacing between icons */
+                        max-width: 20px; /* Adjust size as needed */
+                    }
+                    .otp {
+                        background-color: #E3B12F; /* Yellow background color */
+                        padding: 5px;
+                        width: 400vh;
+                        font-size: 20px;
+                        text-align: center;
+                        margin-top: 40px;
+                        margin-bottom: 20px;
+                        letter-spacing: 5px;
+                        border-radius: 50px;
+                        color: white;
+                    }
+                    /* Add more styles as needed */
+                </style>
+            </head>
+            <body>
+            <img class="logo" src="${logo}" alt="Logo">
+                </div>
+                <div class="container">
+                    <!-- Second Image -->
+                    <img src="${emailverification}" alt="Embedded Image" style="width: 90px;">
+                    <!-- Rest of your email content -->
+                    <p style="color: #DC9A08; font-size:20px; font-weight:bold; margin: 15px 0;">
+                    Verify your email address
+                    </p>
+                         
+                    <p style="color: #606060; margin: 15px 0;">
+                    You’ve entered ${email} as the email for your account. Please enter this code in the designated field on our platform. If you did not initiate this request, please disregard this email.
+                    </p>
+
+                    <strong class="otp">${otp}</strong>       
+
+                    <p style="color: #606060; margin: 10px 0;">
+                    If you encounter any issues or have questions, feel free to contact our support team at [GTsignalsupport@email.com].
+                    </p>
+
+                    <div class="header"> 
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:20px;">
+                        Get In Touch!
+                    </p>
+                    <a href="https://www.facebook.com/link-to-facebook" target="_blank">
+                        <img src="${fb}" alt="Facebook" class="centered-image">
+                    </a>
+                    <a href="https://www.instagram.com/link-to-instagram" target="_blank">
+                        <img src="${insta}" alt="Instagram" class="centered-image">
+                    </a>
+                    <a href="https://www.twitter.com/link-to-twitter" target="_blank">
+                        <img src="${twitter}" alt="Twitter" class="centered-image">  
+                    </a>
+            
+                    <!-- Add a copyright symbol -->
+                    <p style="color: black; text-align: center; font-weight:boldest; font-size:13px;">
+                        &#169; 2023 GT-Signal. All right reserved
+                    </p>
+                </div>
+            </body>
+            </html>
+        `,
         };
 
         await transporter.sendMail(mailOptions);
@@ -477,14 +1034,14 @@ const updateuserstatus = async (req, res) => {
         console.log('Result from query:', result);
 
         if (result.rowCount === 0) {
-            return res.status(404).json({error:true, msg: 'User not found' });
+            return res.status(404).json({ error: true, msg: 'User not found' });
         }
 
-        res.status(200).json({error:false, msg: 'Block status updated successfully', data: result.rows[0] });
+        res.status(200).json({ error: false, msg: 'Block status updated successfully', data: result.rows[0] });
     } catch (error) {
         console.error('Error updating block status:', error);
         res.status(500).json({ msg: 'Error updating block status', error: false });
     }
 }
 
-module.exports = { usersignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword, updatePassword, deleteuser, getalldeletedusers, deleteuserpermanently, updateuserstatus };
+module.exports = { usersignup, verifySignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword, updatePassword, deleteuser, getalldeletedusers, deleteuserpermanently, updateuserstatus };
