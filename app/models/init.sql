@@ -110,15 +110,24 @@ CREATE TABLE IF NOT EXISTS ratelink (
   updated_at timestamp DEFAULT NOW()
 ); 
 
-CREATE TABLE IF NOT EXISTS notifications (
-  id SERIAL PRIMARY KEY,
-  sender_id INT REFERENCES Admin(id),
-  receiver_id INT REFERENCES Users(id),
-  title VARCHAR(255),
-  content VARCHAR(255),
-  created_at timestamp DEFAULT NOW(),
-  updated_at timestamp DEFAULT NOW()
-); 
+-- CREATE TABLE IF NOT EXISTS notifications (
+--   id SERIAL PRIMARY KEY,
+--   sender_id INT REFERENCES Admin(id),
+--   receiver_id INT REFERENCES Users(id),
+--   title VARCHAR(255),
+--   content VARCHAR(255),
+--   created_at timestamp DEFAULT NOW(),
+--   updated_at timestamp DEFAULT NOW()
+-- ); 
+
+CREATE TABLE IF NOT EXISTS notification_info (
+    notification_id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    signal_id VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,

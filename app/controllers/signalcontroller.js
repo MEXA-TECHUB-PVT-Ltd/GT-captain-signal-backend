@@ -1,134 +1,35 @@
 const pool = require("../config/dbconfig");
 const FCM = require('fcm-node');
 
-// const createsignal = (req, res) => {
-//     const {
-//         title,
-//         price,
-//         date,
-//         time,
-//         signal_status,
-//         action,
-//         stop_loss,
-//         trade_result,
-//         trade_probability,
-//         profit_loss,
-//         time_frame
-//     } = req.body;
+// Extract device IDs from userDeviceIDs
+// const deviceTokens = userDeviceIDs.map(user => user.device_id);
+// console.log(deviceTokens);
 
-//     if (
-//         !title ||
-//         !price ||
-//         !date ||
-//         !time ||
-//         !signal_status ||
-//         !action ||
-//         !stop_loss ||
-//         !trade_result ||
-//         !trade_probability ||
-//         !profit_loss ||
-//         !time_frame
-//     ) {
-//         return res
-//             .status(400)
-//             .json({ msg: 'Request body cannot be empty', error: true });
-//     }
+// const serverKey =
+//     'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
+// // 'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
+// const fcm = new FCM(serverKey);
 
-//     if (
-//         !['ACTIVE', 'INACTIVE', 'EXPIRED'].includes(signal_status) ||
-//         !['BUY', 'SELL'].includes(action)
-//     ) {
-//         return res.status(400).json({
-//             msg:
-//                 'Status can be one of ACTIVE, INACTIVE, EXPIRED, and action will be BUY or SELL. Profit_loss and trade_result can be waiting or announced.',
-//             error: true
-//         });
-//     }
-
-//     // Validate and format the time value
-//     const timeRegex = /^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
-//     if (typeof time !== 'string' || !time.match(timeRegex)) {
-//         return res.status(400).json({ msg: 'Invalid time format', error: true });
-//     }
-
-//     // Check the relationship between profit_loss and trade_result
-//     if (
-//         (profit_loss === 'WAITING' && trade_result !== 'WAITING') ||
-//         (profit_loss === 'ANNOUNCED' && isNaN(trade_result))
-//     ) {
-//         return res.status(400).json({
-//             msg:
-//                 'If profit_loss is WAITING, trade_result should be WAITING. If profit_loss is ANNOUNCED, trade_result can be any value.',
-//             error: true
-//         });
-//     }
-
-//     // Insert the new signal into the database
-//     const insertSignalQuery = `
-//         INSERT INTO signals (title, price, date, time, signal_status, action, stop_loss, trade_result, trade_probability, profit_loss, time_frame)
-//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-//         RETURNING *
-//     `;
-
-//     const signalValues = [
-//         title,
-//         price,
-//         date,
-//         time,
-//         signal_status,
-//         action,
-//         stop_loss,
-//         trade_result,
-//         trade_probability,
-//         profit_loss,
-//         time_frame
-//     ];
-
-//     pool.query(insertSignalQuery, signalValues, (err, signalResult) => {
-//         if (err) {
-//             console.error('Error creating signal:', err);
-//             return res
-//                 .status(500)
-//                 .json({ msg: 'Internal server error', error: true });
-//         }
-
-//         const newSignal = signalResult.rows[0];
-//         const emptyTakeProfit = [];
-
-//         // Sending notification after successfully creating the signal
-//         const serverKey =
-//             'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
-//         const fcm = new FCM(serverKey);
-
-//         const message = {
-//             notification: {
-//                 title: 'Signal',
-//                 body: 'New Signal Created'
-//             },
-//             to:
-//                 'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
-//         };
-
-//         fcm.send(message, function (err, response) {
-//             if (err) {
-//                 console.error('Error sending message', err);
-//             } else {
-//                 console.log(
-//                     'Successfully sent message',
-//                     response,
-//                     message.notification
-//                 );
-//             }
-//         });
-
-//         return res.status(201).json({
-//             msg: 'Signal created successfully',
-//             data: newSignal,
-//             take_profit: emptyTakeProfit,
-//             error: false
-//         });
-//     });
+// const message = {
+//     notification: {
+//         title: 'Signal',
+//         body: 'New Signal Created'
+//     },
+//     to: 'eXA-ZyQVTH6_m8-pNUAP3S:APA91bHr8G6Dkt6MICR74OyoMHMJTNXNsLOvMPH66D2y3B7tZN4rGIoQidK4iamPeMzq3gKWJmPKlE9kYXIsqNeo9QgyLJ7Ju3OZ3Y2s43tLZpCoB_EXAackzoxWl0NUO9nYtofXjcYa'
+//     // 'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
 // };
+
+// fcm.send(message, function (err, response) {
+//     if (err) {
+//         console.error('Error sending message', err);
+//     } else {
+//         console.log(
+//             'Successfully sent message',
+//             response,
+//             message.notification
+//         );
+//     }
+// });
 
 const getAllUserDeviceIDs = (callback) => {
     const userDeviceIDsQuery = `
@@ -231,18 +132,6 @@ const createsignal = (req, res) => {
         const newSignal = signalResult.rows[0];
         const emptyTakeProfit = [];
 
-        // getAllUserDeviceIDs((err, userDeviceIDs) => {
-        //     if (err) {
-        //         // Handle error
-        //         console.error('Error:', err);
-        //     } else {
-        //         // Proceed with the user device IDs
-        //         console.log('User Device IDs:', userDeviceIDs.map(user => user.device_id))
-        //         // Call createsignal function here or wherever required with userDeviceIDs
-        //     }
-        // });
-
-        // console.log(userDeviceIDs.map(user => user.device_ids).flat());
         getAllUserDeviceIDs((err, userDeviceIDs) => {
             if (err) {
                 // Handle error
@@ -264,10 +153,6 @@ const createsignal = (req, res) => {
                     body: 'New Signal Created'
                 },
                 registration_ids: deviceTokens
-                //     "eXA-ZyQVTH6_m8-pNUAP3S:APA91bHr8G6Dkt6MICR74OyoMHMJTNXNsLOvMPH66D2y3B7tZN4rGIoQidK4iamPeMzq3gKWJmPKlE9kYXIsqNeo9QgyLJ7Ju3OZ3Y2s43tLZpCoB_EXAackzoxWl0NUO9nYtofXjcYa",
-                // "e-Sec3jFQA6iZWTTNKhTXv:APA91bFDw1tKRlBlEtynrIgGf9QemDkS8fTA4Nad7yc0mgQkpIP8zfFXgN3HnIEi8ngggxoW86Ajeq3fU6xmLXa_HOgfTcGCZW3AriutVcvW7T3QxPsdbHQAbCZ2py8aK50EWwJo2gWW",
-                // "e-Sec3jFQA6iZWTTNKhTXv:APA91bFDw1tKRlBlEtynrIgGf9QemDkS8fTA4Nad7yc0mgQkpIP8zfFXgN3HnIEi8ngggxoW86Ajeq3fU6xmLXa_HOgfTcGCZW3AriutVcvW7T3QxPsdbHQAbCZ2py8aK50EWwJo2gWW"
-
             };
 
             fcm.send(message, function (err, response) {
@@ -275,39 +160,62 @@ const createsignal = (req, res) => {
                     console.error('Error sending message', err);
                 } else {
                     console.log('Successfully sent message', response, message.notification);
+
+                    // Insert notification details into the database
+                    const insertNotificationQuery = `
+                 INSERT INTO notification_info (user_id, signal_id, title, body)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING *
+             `;
+
+                    userDeviceIDs.forEach(user => {
+                        const notificationValues = [
+                            user.id, // Using the individual user ID
+                            newSignal.signal_id,
+                            'New Signal Created',
+                            'Notification body content'
+                        ];
+
+                        pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
+                            if (err) {
+                                console.error('Error inserting notification:', err);
+                                // Handle error while inserting notification for this user
+                            } else {
+                                const insertedNotification = notificationResult.rows[0];
+                                console.log('Notification inserted:', insertedNotification);
+                                // Handle successful insertion of notification for this user
+                            }
+                        });
+                    });
+
+                    // const userids = userDeviceIDs.map(user => user.id);
+                    // console.log(userids);
+
+                    // const notificationValues = [
+                    //     userids, // Replace with the actual user ID associated with the signal
+                    //     newSignal.signal_id, // Assuming 'signal_id' is the ID generated for the new signal
+                    //     'New Signal Created', // Replace with the actual title if needed
+                    //     'Notification body content' // Replace with the actual notification body content
+                    // ];
+
+                    // pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
+                    //     if (err) {
+                    //         console.error('Error inserting notification:', err);
+                    //         // Handle error while inserting notification
+                    //     } else {
+                    //         const insertedNotification = notificationResult.rows[0];
+                    //         console.log('Notification inserted:', insertedNotification);
+                    //         // Handle successful insertion of notification
+                    //     }
+                    // });
+
                 }
             });
+
+            const userdetails = userDeviceIDs.map(user => user);
+            console.log(userdetails);
+
         });
-
-        // Extract device IDs from userDeviceIDs
-        // const deviceTokens = userDeviceIDs.map(user => user.device_id);
-        // console.log(deviceTokens);
-
-        // const serverKey =
-        //     'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
-        // // 'AAAAkeCgr4A:APA91bF-MkjZGuGsAaHS1ES1pzPCqqKR5F6EuFtbRxVrPdzrodTtM0U9wbcpvwUpZIcL7gsgtQuupBCCID-kqQTO_GoIW2XJhoazanXDyVMAhk01IjIR9bvjDLm-2xI3hK5pBDS7bqdG';
-        // const fcm = new FCM(serverKey);
-
-        // const message = {
-        //     notification: {
-        //         title: 'Signal',
-        //         body: 'New Signal Created'
-        //     },
-        //     to: 'eXA-ZyQVTH6_m8-pNUAP3S:APA91bHr8G6Dkt6MICR74OyoMHMJTNXNsLOvMPH66D2y3B7tZN4rGIoQidK4iamPeMzq3gKWJmPKlE9kYXIsqNeo9QgyLJ7Ju3OZ3Y2s43tLZpCoB_EXAackzoxWl0NUO9nYtofXjcYa'
-        //     // 'fWKefWn0Rvu1F7p8nZ8bYX:APA91bGipE2vwNJdno00r7rlCpFtmWQptbrsewPBGbicP6NN9Q2J_AaqflrSnfRZzetPz1Hk1qDcmkcXxpYdPv65ZvVq4UNIXcf7tcaWRQSyQxUCi62zBnyu0pVzMqGCDm_6qJGxZ2Mm'
-        // };
-
-        // fcm.send(message, function (err, response) {
-        //     if (err) {
-        //         console.error('Error sending message', err);
-        //     } else {
-        //         console.log(
-        //             'Successfully sent message',
-        //             response,
-        //             message.notification
-        //         );
-        //     }
-        // });
 
         return res.status(201).json({
             msg: 'Signal created successfully',
