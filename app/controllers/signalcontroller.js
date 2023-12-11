@@ -186,7 +186,7 @@ const createsignal = (req, res) => {
                                 // Handle successful insertion of notification for this user
                             }
                         });
-                    }); 
+                    });
 
                 }
             });
@@ -254,6 +254,70 @@ const updateSignalResult = (req, res) => {
         `;
 
         const signalValues = [profit_loss, image, signal_id];
+
+        getAllUserDeviceIDs((err, userDeviceIDs) => {
+            if (err) {
+                // Handle error
+                console.error('Error fetching user device IDs:', err);
+                return res.status(500).json({ msg: 'Error fetching user device IDs', error: true });
+            }
+
+            // Extract device IDs from userDeviceIDs
+            const deviceTokens = userDeviceIDs.map(user => user.device_id);
+            console.log(deviceTokens);
+
+            // Sending notification to all devices
+            const serverKey = 'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
+            const fcm = new FCM(serverKey);
+
+            const message = {
+                notification: {
+                    title: 'Signal',
+                    body: 'New Signal Created'
+                },
+                registration_ids: deviceTokens
+            };
+
+            fcm.send(message, function (err, response) {
+                if (err) {
+                    console.error('Error sending message', err);
+                } else {
+                    console.log('Successfully sent message', response, message.notification);
+
+                    // Insert notification details into the database
+                    const insertNotificationQuery = `
+                 INSERT INTO notification_info (user_id, signal_id, title, body)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING *
+             `;
+
+                    userDeviceIDs.forEach(user => {
+                        const notificationValues = [
+                            user.id, // Using the individual user ID
+                            signal_id,
+                            'Signal Result ',
+                            'Signal Result Updated Successfully'
+                        ];
+
+                        pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
+                            if (err) {
+                                console.error('Error inserting notification:', err);
+                                // Handle error while inserting notification for this user
+                            } else {
+                                const insertedNotification = notificationResult.rows[0];
+                                console.log('Notification inserted:', insertedNotification);
+                                // Handle successful insertion of notification for this user
+                            }
+                        });
+                    });
+
+                }
+            });
+
+            const userdetails = userDeviceIDs.map(user => user);
+            console.log(userdetails);
+
+        });
 
         pool.query(updateSignalQuery, signalValues, (err, signalResult) => {
             if (err) {
@@ -491,15 +555,15 @@ const updateSignalById = (req, res) => {
                     console.error('Error fetching user device IDs:', err);
                     return res.status(500).json({ msg: 'Error fetching user device IDs', error: true });
                 }
-    
+
                 // Extract device IDs from userDeviceIDs
                 const deviceTokens = userDeviceIDs.map(user => user.device_id);
                 console.log(deviceTokens);
-    
+
                 // Sending notification to all devices
                 const serverKey = 'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
                 const fcm = new FCM(serverKey);
-    
+
                 const message = {
                     notification: {
                         title: 'Signal',
@@ -507,20 +571,20 @@ const updateSignalById = (req, res) => {
                     },
                     registration_ids: deviceTokens
                 };
-    
+
                 fcm.send(message, function (err, response) {
                     if (err) {
                         console.error('Error sending message', err);
                     } else {
                         console.log('Successfully sent message', response, message.notification);
-    
+
                         // Insert notification details into the database
                         const insertNotificationQuery = `
                      INSERT INTO notification_info (user_id, signal_id, title, body)
                      VALUES ($1, $2, $3, $4)
                      RETURNING *
                  `;
-    
+
                         userDeviceIDs.forEach(user => {
                             const notificationValues = [
                                 user.id, // Using the individual user ID
@@ -528,7 +592,7 @@ const updateSignalById = (req, res) => {
                                 'Signal',
                                 'Signal Updated Successfully'
                             ];
-    
+
                             pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
                                 if (err) {
                                     console.error('Error inserting notification:', err);
@@ -539,14 +603,14 @@ const updateSignalById = (req, res) => {
                                     // Handle successful insertion of notification for this user
                                 }
                             });
-                        }); 
-    
+                        });
+
                     }
                 });
-    
+
                 const userdetails = userDeviceIDs.map(user => user);
                 console.log(userdetails);
-    
+
             });
 
             // The update was successful, and the updated signal attributes are in result.rows[0]
