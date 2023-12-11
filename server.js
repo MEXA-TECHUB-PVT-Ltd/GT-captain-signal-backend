@@ -125,19 +125,35 @@ const users = {};
 let adminSocket = null;
 
 const saveMessageToDB = async (userId, adminId, message, senderType) => {
+ console.log(userId, adminId, message, senderType);
+ try {
+  const query = 'INSERT INTO messages (user_id, admin_id, sender_type, message) VALUES ($1, $2, $3, $4)';
+  await pool.query(query, [userId, adminId, senderType, message]);
+  console.log('Message saved to the database.');
+} catch (error) {
+  console.error('Error saving message to the database:', error);
+}
+};
+
+const getInitialMessages = async () => {
   try {
-    const query = 'INSERT INTO messages (user_id, admin_id, sender_type, message) VALUES ($1, $2, $3, $4)';
-    await pool.query(query, [userId, adminId, senderType, message]);
-    console.log('Message saved to the database.');
+    const query = 'SELECT * FROM messages';
+    const { rows } = await pool.query(query);
+    return rows;
   } catch (error) {
-    console.error('Error saving message to the database:', error);
+    console.error('Error fetching messages:', error);
+    return [];
   }
 };
+
+let currentUserId = null;
 
 io.on('connection', async (socket) => {
   // When a new user connects
   socket.on('user_connect', (userId) => {
     users[userId] = socket;
+    console.log(userId);
+    currentUserId = userId;
     console.log(`User ${userId} connected.`);
   });
 
@@ -151,32 +167,31 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('user_message', async (data) => {
-    // Extract user ID and message from data
-    // const { userId, message } = data;
     if (adminSocket) {
-      adminSocket.emit('message_from_user', data);
-      // Save message with user ID, null admin ID, 'user' sender type
-      const userId = 1;
-      console.log(userId, null, data, 'user');
-      // await saveMessageToDB(userId, null, message, 'user');
+      adminSocket.emit('message_from_user', { userId: currentUserId, message: data });
+      const userId = 1; // Your desired user ID
+      // console.log("currentUserId", currentUserId)
+      // console.log("user",currentUserId, 1, data, 'user')
+      await saveMessageToDB(currentUserId, 1, data, 'user');
     } else {
       console.log('Admin is not connected.');
     }
   });
 
-  // When admin sends a message to a specific user
   socket.on('admin_message', async (data) => {
     const { userId, message } = data;
     if (users[userId]) {
       users[userId].emit('message_from_admin', message);
-      // Save message with null user ID, admin ID, 'admin' sender type
-      console.log(null, userId, message, 'admin');
-      // await saveMessageToDB(null, userId, message, 'admin');
+      // console.log("admin", userId, 1, data.message, 'admin');
+      await saveMessageToDB(userId, 1, data.message, 'admin');
     } else {
       console.log(`User ${userId} is not connected.`);
     }
   });
-
+  
+  const initialMessages = await getInitialMessages();
+  socket.emit('initial_messages', initialMessages);
+  
   // Handle disconnecons
   socket.on('disconnectit', () => {
     if (socket === adminSocket) {
