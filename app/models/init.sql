@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS Users (
   deleted_status BOOLEAN DEFAULT false, 
   deleted_at TIMESTAMP, 
   created_at timestamp DEFAULT NOW(),
-  updated_at timestamp DEFAULT NOW()
+  updated_at timestamp DEFAULT NOW(),
+  vip_status BOOLEAN DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS Deletedusers (

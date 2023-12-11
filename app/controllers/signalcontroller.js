@@ -172,8 +172,8 @@ const createsignal = (req, res) => {
                         const notificationValues = [
                             user.id, // Using the individual user ID
                             newSignal.signal_id,
-                            'New Signal Created',
-                            'Notification body content'
+                            'Signal',
+                            'New Signal Created'
                         ];
 
                         pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
@@ -186,28 +186,7 @@ const createsignal = (req, res) => {
                                 // Handle successful insertion of notification for this user
                             }
                         });
-                    });
-
-                    // const userids = userDeviceIDs.map(user => user.id);
-                    // console.log(userids);
-
-                    // const notificationValues = [
-                    //     userids, // Replace with the actual user ID associated with the signal
-                    //     newSignal.signal_id, // Assuming 'signal_id' is the ID generated for the new signal
-                    //     'New Signal Created', // Replace with the actual title if needed
-                    //     'Notification body content' // Replace with the actual notification body content
-                    // ];
-
-                    // pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
-                    //     if (err) {
-                    //         console.error('Error inserting notification:', err);
-                    //         // Handle error while inserting notification
-                    //     } else {
-                    //         const insertedNotification = notificationResult.rows[0];
-                    //         console.log('Notification inserted:', insertedNotification);
-                    //         // Handle successful insertion of notification
-                    //     }
-                    // });
+                    }); 
 
                 }
             });
@@ -504,6 +483,71 @@ const updateSignalById = (req, res) => {
                 // The signal with the specified signal_id was not found
                 return res.status(404).json({ error: true, msg: 'Signal not found' });
             }
+
+            console.log(result.rows[0]);
+            getAllUserDeviceIDs((err, userDeviceIDs) => {
+                if (err) {
+                    // Handle error
+                    console.error('Error fetching user device IDs:', err);
+                    return res.status(500).json({ msg: 'Error fetching user device IDs', error: true });
+                }
+    
+                // Extract device IDs from userDeviceIDs
+                const deviceTokens = userDeviceIDs.map(user => user.device_id);
+                console.log(deviceTokens);
+    
+                // Sending notification to all devices
+                const serverKey = 'AAAAhAfoM48:APA91bETW1Y8QWTJs1cV2hMOBz4h3xSRnmdgZZlBc0ewWFL3d_1DXWj8G3ZET65omaek80PVO6yKAM2LsyM5vAgs4S-1CTENPYcmkh6XwFAXxFP8bSc381wyM_jWrbQCC4h_RmYt9tcE';
+                const fcm = new FCM(serverKey);
+    
+                const message = {
+                    notification: {
+                        title: 'Signal',
+                        body: 'Signal Updated Successfully'
+                    },
+                    registration_ids: deviceTokens
+                };
+    
+                fcm.send(message, function (err, response) {
+                    if (err) {
+                        console.error('Error sending message', err);
+                    } else {
+                        console.log('Successfully sent message', response, message.notification);
+    
+                        // Insert notification details into the database
+                        const insertNotificationQuery = `
+                     INSERT INTO notification_info (user_id, signal_id, title, body)
+                     VALUES ($1, $2, $3, $4)
+                     RETURNING *
+                 `;
+    
+                        userDeviceIDs.forEach(user => {
+                            const notificationValues = [
+                                user.id, // Using the individual user ID
+                                result.rows[0].signal_id,
+                                'Signal',
+                                'Signal Updated Successfully'
+                            ];
+    
+                            pool.query(insertNotificationQuery, notificationValues, (err, notificationResult) => {
+                                if (err) {
+                                    console.error('Error inserting notification:', err);
+                                    // Handle error while inserting notification for this user
+                                } else {
+                                    const insertedNotification = notificationResult.rows[0];
+                                    console.log('Notification inserted:', insertedNotification);
+                                    // Handle successful insertion of notification for this user
+                                }
+                            });
+                        }); 
+    
+                    }
+                });
+    
+                const userdetails = userDeviceIDs.map(user => user);
+                console.log(userdetails);
+    
+            });
 
             // The update was successful, and the updated signal attributes are in result.rows[0]
             return res.status(200).json({ msg: 'Signal updated', data: result.rows[0], error: false });

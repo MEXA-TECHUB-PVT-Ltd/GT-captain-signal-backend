@@ -171,11 +171,11 @@ const usersignup = async (req, res) => {
             INSERT INTO Users (name, email, password, signup_type, token, device_id, verificationCode)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
         `;
-           await pool.query(insertVerificationQuery, [name, email, hashedPassword, signup_type, token, device_id, verificationCode]);
- 
-           const userId = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+        await pool.query(insertVerificationQuery, [name, email, hashedPassword, signup_type, token, device_id, verificationCode]);
 
-        res.status(200).json({ error: false, msg: 'Verification code sent successfully', data: userId.rows  });
+        const userId = await pool.query('SELECT * FROM Users WHERE email = $1', [email]);
+
+        res.status(200).json({ error: false, msg: 'Verification code sent successfully', data: userId.rows });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: true, msg: 'Internal server error' });
@@ -664,7 +664,6 @@ const updateuserprofile = async (req, res) => {
     }
 };
 
-
 const forgetpassword = async (req, res) => {
 
     const { email } = req.body;
@@ -1044,4 +1043,29 @@ const updateuserstatus = async (req, res) => {
     }
 }
 
-module.exports = { usersignup, verifySignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword, updatePassword, deleteuser, getalldeletedusers, deleteuserpermanently, updateuserstatus };
+const updateVipStatus = async (req, res) => {
+    const { userId } = req.params;
+    const { vip_status } = req.body; // Assuming the body contains a field named vip_status
+
+    console.log('Received user ID:', userId);
+    console.log('Received VIP status:', vip_status);
+
+    try {
+        const updateUserQuery = 'UPDATE Users SET vip_status = $1 WHERE id = $2 RETURNING *';
+        const values = [vip_status, userId];
+        const result = await pool.query(updateUserQuery, values);
+
+        console.log('Result from query:', result);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: true, msg: 'User not found' });
+        }
+
+        res.status(200).json({ error: false, msg: 'VIP status updated successfully', data: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating VIP status:', error);
+        res.status(500).json({ msg: 'Error updating VIP status', error: true });
+    }
+};
+
+module.exports = { usersignup, verifySignup, usersignin, getallusers, getalluserbyID, updateuserprofile, forgetpassword, resetpassword, updatePassword, deleteuser, getalldeletedusers, deleteuserpermanently, updateuserstatus, updateVipStatus };
