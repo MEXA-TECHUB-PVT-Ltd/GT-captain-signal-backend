@@ -14,6 +14,7 @@ router.put('/password/updatepassword', userController.updatePassword);
 router.delete('/deleteuser/:id', userController.deleteuser); 
 router.get('/deleteusers/getall', userController.getalldeletedusers); 
 router.delete('/deleteuserpermanently/:id', userController.deleteuserpermanently);
-router.put('/updateUserStatus/:userId', userController.updateuserstatus);  
+router.put('/updateUserStatus/:userId', userController.updateuserstatus);
+router.put('/updateUserVIPStatus/:userId', userController.updateVipStatus);   
 
 module.exports = router;

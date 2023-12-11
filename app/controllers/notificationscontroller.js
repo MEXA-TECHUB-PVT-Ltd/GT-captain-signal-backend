@@ -59,99 +59,80 @@ const createnotification = async (req, res) => {
 
 const getAllNotifications = async (req, res) => {
   try {
-    const { rows: notifications } = await pool.query(`
-      SELECT DISTINCT ON (n.id) n.id as notification_id, n.sender_id, n.title, n.content, n.created_at, n.updated_at, 
-        u.id as user_id, u.name, u.email /* Add other user fields */
-      FROM notifications n
-      LEFT JOIN Users u ON n.receiver_id = u.id
-    `);
+    const query = `
+      SELECT n.notification_id, n.title AS notification_title, n.body AS notification_body,
+             u.id AS user_id, u.name AS user_name, u.email AS user_email,
+             s.signal_id, s.title AS signal_title, s.price, s.date, s.time,
+             s.signal_status, s.action, s.stop_loss, s.trade_probability, s.time_frame
+      FROM notification_info n
+      INNER JOIN Users u ON CAST(n.user_id AS INTEGER) = u.id
+      INNER JOIN signals s ON CAST(n.signal_id AS INTEGER) = s.signal_id;
+    `;
 
-    const notificationsWithUserDetails = notifications.map(notification => ({
-      id: notification.notification_id,
-      sender_id: notification.sender_id,
-      title: notification.title,
-      content: notification.content,
-      created_at: notification.created_at,
-      updated_at: notification.updated_at,
-      user: {
-        id: notification.user_id,
-        name: notification.name,
-        email: notification.email,
-        // Add other user fields as needed
-      },
-    }));
-
-    res.json({ msg: 'Notifications retrieved successfully', error: false, data: notificationsWithUserDetails });
+    const { rows } = await pool.query(query);
+    res.status(200).json({ msg: "All notifications fetched", error: false, data: rows });
   } catch (error) {
-    console.error('Error getting notifications:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ msg: 'Internal server error', error: true });
   }
 };
 
 const getNotificationById = async (req, res) => {
-  const notificationId = req.params.id;
-
   try {
-    // Fetch the notification by ID
-    const { rows: notifications } = await pool.query(`
-      SELECT *
-      FROM notifications
-      WHERE id = $1
-    `, [notificationId]);
+    const { notificationId } = req.params;
 
-    // Check if the notification with the specified ID exists
-    if (notifications.length === 0) {
+    // Check if the notification ID exists
+    const checkQuery = 'SELECT EXISTS(SELECT 1 FROM notification_info WHERE notification_id = $1)';
+    const { rows: checkResult } = await pool.query(checkQuery, [notificationId]);
+
+    if (!checkResult[0].exists) {
       return res.status(404).json({ msg: 'Notification not found', error: true });
     }
 
-    const notificationDetails = notifications[0];
+    // If the ID exists, fetch the notification
+    const query = `
+      SELECT n.notification_id, n.title AS notification_title, n.body AS notification_body,
+             u.id AS user_id, u.name AS user_name, u.email AS user_email,
+             s.signal_id, s.title AS signal_title, s.price, s.date, s.time,
+             s.signal_status, s.action, s.stop_loss, s.trade_probability, s.time_frame
+      FROM notification_info n
+      INNER JOIN Users u ON CAST(n.user_id AS INTEGER) = u.id
+      INNER JOIN signals s ON CAST(n.signal_id AS INTEGER) = s.signal_id
+      WHERE CAST(n.notification_id AS INTEGER) = $1;
+    `;
 
-    // Fetch user details associated with the notification
-    const { rows: users } = await pool.query(`
-      SELECT *
-      FROM Users
-      WHERE id = $1
-    `, [notificationDetails.receiver_id]);
-
-    // Check if the associated user exists
-    if (users.length === 0) {
-      return res.status(404).json({ msg: 'User not found for this notification', error: true });
+    const { rows } = await pool.query(query, [notificationId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ msg: 'Notification not found', error: true });
     }
 
-    const userDetails = users[0];
-
-    // Return the success response with the notification details and user details
-    res.json({ msg: 'Notification retrieved successfully', error: false, data: { ...notificationDetails, user: userDetails } });
+    res.status(200).json({ msg: "Notification fetched", error: false, data: rows[0] });
   } catch (error) {
-    console.error('Error getting notification by ID:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error fetching notification:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-const deleteNotificationsByUserId = async (req, res) => {
-  const userId = req.params.id;
-
+const getNotificationsByUserId = async (req, res) => {
   try {
-    // Check if the user exists
-    const { rows: userRows } = await pool.query('SELECT * FROM Users WHERE id = $1', [userId]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ msg: 'User not found', error: true });
-    }
+    const { userId } = req.params;
 
-    // Check if there are notifications associated with the user
-    const { rows: notificationRows } = await pool.query('SELECT * FROM notifications WHERE receiver_id = $1', [userId]);
-    if (notificationRows.length === 0) {
-      return res.status(404).json({ msg: 'No notifications found for the user', error: true });
-    }
+    const query = `
+      SELECT n.notification_id, n.title AS notification_title, n.body AS notification_body,
+             u.id AS user_id, u.name AS user_name, u.email AS user_email,
+             s.signal_id, s.title AS signal_title, s.price, s.date, s.time,
+             s.signal_status, s.action, s.stop_loss, s.trade_probability, s.time_frame
+      FROM notification_info n
+      INNER JOIN Users u ON CAST(n.user_id AS INTEGER) = u.id
+      INNER JOIN signals s ON CAST(n.signal_id AS INTEGER) = s.signal_id
+      WHERE CAST(n.user_id AS INTEGER) = $1;
+    `;
 
-    // Delete notifications associated with the user
-    await pool.query('DELETE FROM notifications WHERE receiver_id = $1', [userId]);
-
-    // Return the success response
-    res.json({ msg: 'Notifications deleted successfully', error: false });
+    const { rows } = await pool.query(query, [userId]);
+    res.status(200).json({ msg: "Notification fetched", error: false, data: rows });
   } catch (error) {
-    console.error('Error deleting notifications by user ID:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ msg: 'Internal server error', error: true });
   }
 };
 
@@ -187,4 +168,4 @@ const updateNotification = async (req, res) => {
   }
 };
 
-module.exports = { createnotification, getAllNotifications, getNotificationById, deleteNotificationsByUserId, updateNotification };
+module.exports = { createnotification, getAllNotifications, getNotificationById, getNotificationsByUserId, updateNotification };
