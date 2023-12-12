@@ -109,17 +109,14 @@ CREATE TABLE IF NOT EXISTS ratelink (
   link VARCHAR(255), 
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW()
-); 
+);  
 
--- CREATE TABLE IF NOT EXISTS notifications (
---   id SERIAL PRIMARY KEY,
---   sender_id INT REFERENCES Admin(id),
---   receiver_id INT REFERENCES Users(id),
---   title VARCHAR(255),
---   content VARCHAR(255),
---   created_at timestamp DEFAULT NOW(),
---   updated_at timestamp DEFAULT NOW()
--- ); 
+CREATE TABLE IF NOT EXISTS chatlink (
+  id SERIAL PRIMARY KEY,
+  link VARCHAR(255), 
+  created_at timestamp DEFAULT NOW(),
+  updated_at timestamp DEFAULT NOW()
+);  
 
 CREATE TABLE IF NOT EXISTS notification_info (
     notification_id SERIAL PRIMARY KEY,
